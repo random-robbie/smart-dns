@@ -59,6 +59,7 @@ func (s *APIServer) setupRoutes() {
 	api.HandleFunc("/rules", s.getDomainRules).Methods("GET")
 	api.HandleFunc("/rules", s.addDomainRule).Methods("POST")
 	api.HandleFunc("/rules/bulk", s.bulkAddDomainRules).Methods("POST")
+	api.HandleFunc("/rules/bulk-delete", s.bulkDeleteDomainRules).Methods("POST")
 	api.HandleFunc("/rules/{id}", s.deleteDomainRule).Methods("DELETE")
 
 	// DNS Logs
@@ -463,6 +464,44 @@ func (s *APIServer) deleteDomainRule(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *APIServer) bulkDeleteDomainRules(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		IDs []int `json:"ids"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if len(req.IDs) == 0 {
+		http.Error(w, "No rule IDs provided", http.StatusBadRequest)
+		return
+	}
+
+	// Delete each rule
+	deletedCount := 0
+	var errors []string
+
+	for _, id := range req.IDs {
+		if err := db.DeleteDomainRule(s.db, id); err != nil {
+			errors = append(errors, fmt.Sprintf("Failed to delete rule %d: %v", id, err))
+		} else {
+			deletedCount++
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	response := map[string]interface{}{
+		"deleted": deletedCount,
+		"total":   len(req.IDs),
+	}
+	if len(errors) > 0 {
+		response["errors"] = errors
+	}
+	json.NewEncoder(w).Encode(response)
 }
 
 // DNS Log handlers

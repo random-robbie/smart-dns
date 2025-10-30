@@ -501,6 +501,71 @@
             overflow-x: auto;
         }
 
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: var(--bg-primary);
+            margin: 10% auto;
+            padding: 0;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            color: var(--text-primary);
+        }
+
+        .modal-close {
+            color: var(--text-tertiary);
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .modal-close:hover,
+        .modal-close:focus {
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .modal-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 1rem;
@@ -529,6 +594,11 @@
                 height: auto;
                 padding: 1rem 0;
                 gap: 1rem;
+            }
+
+            .modal-content {
+                width: 95%;
+                margin: 5% auto;
             }
         }
     </style>
@@ -1076,7 +1146,7 @@ nameserver <span id="dnsIp">Loading...</span>
                         <td><span class="badge badge-primary">${count}</span></td>
                         <td>
                             <div class="btn-group">
-                                <button class="btn btn-secondary btn-sm" onclick="renameServer(${server.id}, '${server.name.replace(/'/g, "\\'")}', '${server.primary}', '${server.secondary || ''}')">Rename</button>
+                                <button class="btn btn-secondary btn-sm" onclick="editServer(${server.id}, '${server.name.replace(/'/g, "\\'")}', '${server.primary}', '${server.secondary || ''}')">Edit</button>
                                 <button class="btn btn-danger btn-sm" onclick="deleteServer(${server.id})">Delete</button>
                             </div>
                         </td>
@@ -1151,10 +1221,30 @@ nameserver <span id="dnsIp">Loading...</span>
                 return;
             }
 
-            let html = '<table><thead><tr><th>Domain</th><th>DNS Service</th><th>Actions</th></tr></thead><tbody>';
+            let html = `
+                <div style="margin-bottom: 1rem;">
+                    <button class="btn btn-danger" id="bulkDeleteBtn" onclick="bulkDeleteRules()" style="display: none;">
+                        Delete Selected (<span id="selectedCount">0</span>)
+                    </button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 40px;">
+                                <input type="checkbox" id="selectAll" onchange="toggleSelectAll()" style="cursor: pointer;">
+                            </th>
+                            <th>Domain</th>
+                            <th>DNS Service</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
             rules.forEach(rule => {
                 html += `
                     <tr>
+                        <td>
+                            <input type="checkbox" class="rule-checkbox" data-rule-id="${rule.id}" onchange="updateBulkDeleteButton()" style="cursor: pointer;">
+                        </td>
                         <td><code>${rule.domain}</code></td>
                         <td><span class="badge badge-primary">${rule.server_name}</span></td>
                         <td>
@@ -1412,6 +1502,76 @@ nameserver <span id="dnsIp">Loading...</span>
             }
         }
 
+        function toggleSelectAll() {
+            const selectAllCheckbox = document.getElementById('selectAll');
+            const checkboxes = document.querySelectorAll('.rule-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+            });
+            updateBulkDeleteButton();
+        }
+
+        function updateBulkDeleteButton() {
+            const checkboxes = document.querySelectorAll('.rule-checkbox:checked');
+            const count = checkboxes.length;
+            const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+            const selectedCountSpan = document.getElementById('selectedCount');
+
+            if (count > 0) {
+                bulkDeleteBtn.style.display = 'inline-block';
+                selectedCountSpan.textContent = count;
+            } else {
+                bulkDeleteBtn.style.display = 'none';
+            }
+
+            // Update select all checkbox state
+            const allCheckboxes = document.querySelectorAll('.rule-checkbox');
+            const selectAllCheckbox = document.getElementById('selectAll');
+            if (selectAllCheckbox) {
+                selectAllCheckbox.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
+            }
+        }
+
+        async function bulkDeleteRules() {
+            const checkboxes = document.querySelectorAll('.rule-checkbox:checked');
+            if (checkboxes.length === 0) {
+                alert('No rules selected');
+                return;
+            }
+
+            const count = checkboxes.length;
+            if (!confirm(`Delete ${count} domain rule${count > 1 ? 's' : ''}?`)) {
+                return;
+            }
+
+            // Get all selected rule IDs
+            const ruleIds = Array.from(checkboxes).map(cb => parseInt(cb.getAttribute('data-rule-id')));
+
+            try {
+                const response = await fetch(`${API_BASE}/rules/bulk-delete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: ruleIds })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    let message = `Successfully deleted ${result.deleted} rule(s)`;
+                    if (result.errors && result.errors.length > 0) {
+                        message += `\n\nErrors:\n${result.errors.join('\n')}`;
+                    }
+                    alert(message);
+                    loadDomainRules();
+                    loadServicesOverview();
+                } else {
+                    const errorText = await response.text();
+                    alert(`Failed to delete rules: ${errorText}`);
+                }
+            } catch (error) {
+                alert('Error deleting rules: ' + error.message);
+            }
+        }
+
         async function deleteServer(id) {
             if (!confirm('Delete this service? All associated domain rules will be removed.')) return;
             try {
@@ -1459,6 +1619,76 @@ nameserver <span id="dnsIp">Loading...</span>
                 }
             } catch (error) {
                 alert('Error renaming service: ' + error.message);
+            }
+        }
+
+        // Edit server functions
+        function editServer(id, name, primary, secondary) {
+            // Populate form fields
+            document.getElementById('editServerId').value = id;
+            document.getElementById('editServerName').value = name;
+            document.getElementById('editServerPrimary').value = primary;
+            document.getElementById('editServerSecondary').value = secondary || '';
+
+            // Clear any previous alerts
+            document.getElementById('editServerAlert').innerHTML = '';
+
+            // Show modal
+            document.getElementById('editServerModal').style.display = 'block';
+        }
+
+        function closeEditServerModal() {
+            document.getElementById('editServerModal').style.display = 'none';
+        }
+
+        async function saveServerEdit() {
+            const id = document.getElementById('editServerId').value;
+            const name = document.getElementById('editServerName').value.trim();
+            const primary = document.getElementById('editServerPrimary').value.trim();
+            const secondary = document.getElementById('editServerSecondary').value.trim();
+
+            // Validate inputs
+            if (!name) {
+                showAlert('editServerAlert', 'Service name cannot be empty', 'error');
+                return;
+            }
+            if (!primary) {
+                showAlert('editServerAlert', 'Primary DNS server cannot be empty', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/servers/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: name,
+                        primary: primary,
+                        secondary: secondary
+                    })
+                });
+
+                if (response.ok) {
+                    showAlert('editServerAlert', 'Service updated successfully', 'success');
+                    setTimeout(() => {
+                        closeEditServerModal();
+                        loadDNSServers();
+                        loadServicesOverview();
+                    }, 1000);
+                } else {
+                    const errorText = await response.text();
+                    showAlert('editServerAlert', errorText || 'Failed to update service', 'error');
+                }
+            } catch (error) {
+                showAlert('editServerAlert', 'Error updating service: ' + error.message, 'error');
+            }
+        }
+
+        // Close modal when clicking outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById('editServerModal');
+            if (event.target === modal) {
+                closeEditServerModal();
             }
         }
 
@@ -1863,5 +2093,37 @@ nameserver <span id="dnsIp">Loading...</span>
         // Start auto-refresh for logs tab
         startAutoRefresh();
     </script>
+
+    <!-- Edit Server Modal -->
+    <div id="editServerModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit DNS Service</h3>
+                <button class="modal-close" onclick="closeEditServerModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="editServerAlert"></div>
+                <form id="editServerForm">
+                    <input type="hidden" id="editServerId">
+                    <div class="form-group">
+                        <label class="form-label">Service Name</label>
+                        <input type="text" class="form-input" id="editServerName" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Primary DNS Server</label>
+                        <input type="text" class="form-input" id="editServerPrimary" placeholder="1.1.1.1" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Secondary DNS Server</label>
+                        <input type="text" class="form-input" id="editServerSecondary" placeholder="8.8.8.8">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeEditServerModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveServerEdit()">Save Changes</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
