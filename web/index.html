@@ -1202,11 +1202,19 @@ nameserver <span id="dnsIp">Loading...</span>
         // Load domain rules
         let allDomainRules = []; // Store all rules for filtering
 
+        let allServersForRules = []; // Store servers for domain rules
+
         async function loadDomainRules() {
             try {
-                const response = await fetch(`${API_BASE}/rules`);
-                const rules = await response.json();
+                const [rulesResponse, serversResponse] = await Promise.all([
+                    fetch(`${API_BASE}/rules`),
+                    fetch(`${API_BASE}/servers`)
+                ]);
+                const rules = await rulesResponse.json();
+                const servers = await serversResponse.json();
+
                 allDomainRules = rules; // Store for filtering
+                allServersForRules = servers; // Store servers for dropdowns
 
                 displayDomainRules(rules);
             } catch (error) {
@@ -1240,13 +1248,24 @@ nameserver <span id="dnsIp">Loading...</span>
                     </thead>
                     <tbody>`;
             rules.forEach(rule => {
+                // Build service dropdown
+                let serviceOptions = '';
+                allServersForRules.forEach(server => {
+                    const selected = server.id === rule.server_id ? 'selected' : '';
+                    serviceOptions += `<option value="${server.id}" ${selected}>${server.name}</option>`;
+                });
+
                 html += `
                     <tr>
                         <td>
                             <input type="checkbox" class="rule-checkbox" data-rule-id="${rule.id}" onchange="updateBulkDeleteButton()" style="cursor: pointer;">
                         </td>
                         <td><code>${rule.domain}</code></td>
-                        <td><span class="badge badge-primary">${rule.server_name}</span></td>
+                        <td>
+                            <select class="form-select" style="font-size: 0.875rem; padding: 0.375rem 0.5rem;" onchange="changeRuleService(${rule.id}, '${rule.domain.replace(/'/g, "\\'")}', this.value)">
+                                ${serviceOptions}
+                            </select>
+                        </td>
                         <td>
                             <button class="btn btn-danger btn-sm" onclick="deleteRule(${rule.id})">Delete</button>
                         </td>
@@ -1499,6 +1518,45 @@ nameserver <span id="dnsIp">Loading...</span>
                 loadServicesOverview();
             } catch (error) {
                 alert('Error deleting rule: ' + error.message);
+            }
+        }
+
+        // Change which service a domain rule uses
+        async function changeRuleService(ruleId, domain, newServerId) {
+            const newServerIdNum = parseInt(newServerId);
+            if (isNaN(newServerIdNum) || newServerIdNum <= 0) {
+                alert('Invalid service selected');
+                return;
+            }
+
+            try {
+                // First delete the old rule
+                const deleteResponse = await fetch(`${API_BASE}/rules/${ruleId}`, { method: 'DELETE' });
+                if (!deleteResponse.ok) {
+                    const errorText = await deleteResponse.text();
+                    alert(`Failed to change service: ${errorText}`);
+                    loadDomainRules(); // Reload to reset dropdown
+                    return;
+                }
+
+                // Then add the rule with the new server
+                const addResponse = await fetch(`${API_BASE}/rules`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ domain: domain, server_id: newServerIdNum })
+                });
+
+                if (addResponse.ok) {
+                    loadDomainRules();
+                    loadServicesOverview();
+                } else {
+                    const errorText = await addResponse.text();
+                    alert(`Failed to add rule with new service: ${errorText}`);
+                    loadDomainRules(); // Reload to show current state
+                }
+            } catch (error) {
+                alert('Error changing service: ' + error.message);
+                loadDomainRules(); // Reload to reset dropdown
             }
         }
 
