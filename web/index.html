@@ -1,0 +1,1867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartDNS Proxy</title>
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --bg-tertiary: #ffffff;
+            --text-primary: #1a202c;
+            --text-secondary: #4a5568;
+            --text-tertiary: #718096;
+            --border: #e2e8f0;
+            --accent: #3182ce;
+            --accent-hover: #2c5282;
+            --success: #38a169;
+            --success-bg: #f0fff4;
+            --danger: #e53e3e;
+            --danger-bg: #fff5f5;
+            --warning: #d69e2e;
+            --warning-bg: #fffaf0;
+            --shadow: rgba(0, 0, 0, 0.05);
+            --nav-bg: #2d3748;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #1a202c;
+            --bg-secondary: #2d3748;
+            --bg-tertiary: #2d3748;
+            --text-primary: #f7fafc;
+            --text-secondary: #e2e8f0;
+            --text-tertiary: #a0aec0;
+            --border: #4a5568;
+            --accent: #4299e1;
+            --accent-hover: #3182ce;
+            --success: #48bb78;
+            --success-bg: #22543d;
+            --danger: #fc8181;
+            --danger-bg: #742a2a;
+            --warning: #ecc94b;
+            --warning-bg: #744210;
+            --shadow: rgba(0, 0, 0, 0.3);
+            --nav-bg: #1a202c;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .navbar {
+            background: var(--nav-bg);
+            color: white;
+            padding: 0 2rem;
+            box-shadow: 0 1px 3px var(--shadow);
+        }
+
+        .navbar-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 64px;
+        }
+
+        .navbar-brand {
+            font-size: 1.25rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .navbar-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .theme-toggle {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: background 0.2s;
+        }
+
+        .theme-toggle:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .tabs {
+            display: flex;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 0.25rem;
+            margin-bottom: 2rem;
+            border: 1px solid var(--border);
+        }
+
+        .tab {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-weight: 500;
+            border-radius: 6px;
+            transition: all 0.2s;
+            font-size: 0.9375rem;
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+            background: var(--bg-secondary);
+        }
+
+        .tab.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-header {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 1.25rem;
+            color: var(--text-primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            padding: 0.625rem 0.875rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.9375rem;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 120px;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 0.875rem;
+        }
+
+        .form-hint {
+            font-size: 0.8125rem;
+            color: var(--text-tertiary);
+            margin-top: 0.375rem;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .btn {
+            padding: 0.625rem 1.25rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9375rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-success:hover {
+            opacity: 0.9;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            opacity: 0.9;
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-primary);
+        }
+
+        .btn-sm {
+            padding: 0.375rem 0.75rem;
+            font-size: 0.8125rem;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 0.75rem 1rem;
+            font-size: 0.8125rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid var(--border);
+            background: var(--bg-secondary);
+        }
+
+        td {
+            padding: 0.875rem 1rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9375rem;
+        }
+
+        tr:hover {
+            background: var(--bg-secondary);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.625rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .badge-success {
+            background: var(--success-bg);
+            color: var(--success);
+        }
+
+        .badge-danger {
+            background: var(--danger-bg);
+            color: var(--danger);
+        }
+
+        .badge-primary {
+            background: rgba(49, 130, 206, 0.1);
+            color: var(--accent);
+        }
+
+        .alert {
+            padding: 0.875rem 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            font-size: 0.9375rem;
+            border-left: 4px solid;
+        }
+
+        .alert-success {
+            background: var(--success-bg);
+            color: var(--success);
+            border-color: var(--success);
+        }
+
+        .alert-error {
+            background: var(--danger-bg);
+            color: var(--danger);
+            border-color: var(--danger);
+        }
+
+        .alert-info {
+            background: rgba(49, 130, 206, 0.1);
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--text-tertiary);
+        }
+
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.25rem;
+        }
+
+        .service-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            transition: box-shadow 0.2s;
+        }
+
+        .service-card:hover {
+            box-shadow: 0 4px 12px var(--shadow);
+        }
+
+        .service-name {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--text-primary);
+        }
+
+        .service-dns {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+            font-family: 'SF Mono', Monaco, monospace;
+        }
+
+        .service-count {
+            display: inline-block;
+            padding: 0.375rem 0.75rem;
+            background: var(--bg-secondary);
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+        }
+
+        .log-container {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            display: grid;
+            grid-template-columns: 100px 1fr 60px 140px 150px 60px 80px;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.875rem;
+            align-items: center;
+        }
+
+        .log-entry:hover {
+            background: var(--bg-secondary);
+        }
+
+        .log-time {
+            color: var(--text-tertiary);
+            font-size: 0.8125rem;
+        }
+
+        .log-domain {
+            font-family: 'SF Mono', Monaco, monospace;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .log-server {
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+        }
+
+        .ip-display {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.9375rem;
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .code-block {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1rem;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.875rem;
+            overflow-x: auto;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .log-entry {
+                grid-template-columns: 1fr;
+                gap: 0.5rem;
+                font-size: 0.75rem;
+            }
+
+            .tabs {
+                flex-direction: column;
+            }
+
+            .services-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .navbar-content {
+                flex-direction: column;
+                height: auto;
+                padding: 1rem 0;
+                gap: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-content">
+            <div class="navbar-brand">
+                <span class="status-indicator"></span>
+                SmartDNS Proxy
+            </div>
+            <div class="navbar-actions">
+                <span id="currentIp" class="ip-display">Loading...</span>
+                <button class="theme-toggle" onclick="toggleTheme()">Toggle Theme</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('dashboard', event)">Dashboard</button>
+            <button class="tab" onclick="switchTab('services', event)">Services</button>
+            <button class="tab" onclick="switchTab('domains', event)">Domains</button>
+            <button class="tab" onclick="switchTab('logs', event)">Request Logs</button>
+            <button class="tab" onclick="switchTab('tools', event)">Tools</button>
+            <button class="tab" onclick="switchTab('settings', event)">Settings</button>
+        </div>
+
+        <!-- Dashboard Tab -->
+        <div id="tab-dashboard" class="tab-content active">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalServices">0</div>
+                    <div class="stat-label">DNS Services</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalRules">0</div>
+                    <div class="stat-label">Domain Rules</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalRequests">0</div>
+                    <div class="stat-label">DNS Requests</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">Active Services</div>
+                <div id="servicesOverview">
+                    <div class="empty-state">Loading services...</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">Quick Start</div>
+                <div class="alert alert-info">
+                    Configure your device or router to use <strong id="dnsServerIP">this server</strong> as the DNS server. Port: <strong>53</strong>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="switchTab('services', event)">Add Service</button>
+                    <button class="btn btn-primary" onclick="switchTab('domains', event)">Add Domains</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Services Tab -->
+        <div id="tab-services" class="tab-content">
+            <div class="card">
+                <div class="card-header">Add DNS Service</div>
+                <div id="addServiceAlert"></div>
+                <form id="addServiceForm">
+                    <div class="form-group">
+                        <label class="form-label">Service Name</label>
+                        <input type="text" class="form-input" id="serviceName" placeholder="My SmartDNS Service" required>
+                        <div class="form-hint">A descriptive name for this DNS service</div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Primary DNS Server</label>
+                            <input type="text" class="form-input" id="servicePrimary" placeholder="1.1.1.1" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Secondary DNS Server</label>
+                            <input type="text" class="form-input" id="serviceSecondary" placeholder="8.8.8.8">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Service</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="card-header">Manage Services</div>
+                <div id="servicesManagement">
+                    <div class="empty-state">Loading services...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Domains Tab -->
+        <div id="tab-domains" class="tab-content">
+            <div class="card">
+                <div class="card-header">Add Domain Rule</div>
+                <div id="addRuleAlert"></div>
+                <form id="addRuleForm">
+                    <div class="form-group">
+                        <label class="form-label">Domain</label>
+                        <input type="text" class="form-input" id="domain" placeholder="netflix.com" required>
+                        <div class="form-hint">Supports wildcards: *.domain.com matches all subdomains</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">DNS Service</label>
+                        <select class="form-select" id="dnsServer" required>
+                            <option value="">Select a service...</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Rule</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="card-header">Bulk Import</div>
+                <div id="bulkImportAlert"></div>
+                <form id="bulkImportForm">
+                    <div class="form-group">
+                        <label class="form-label">Domains</label>
+                        <textarea class="form-textarea" id="bulkDomains" placeholder="netflix.com&#10;hulu.com&#10;*.disney.com" required></textarea>
+                        <div class="form-hint">One domain per line, or comma/space separated</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">DNS Service</label>
+                        <select class="form-select" id="bulkDnsServer" required>
+                            <option value="">Select a service...</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-success">Import Domains</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="card-header">Domain Rules</div>
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <input type="text" class="form-input" id="domainSearch" placeholder="Search domains..." onkeyup="filterDomains()">
+                    <div class="form-hint">Type to filter domains by name or service</div>
+                </div>
+                <div class="table-container" id="rulesTable">
+                    <div class="empty-state">Loading rules...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs Tab -->
+        <div id="tab-logs" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <span>DNS Request Logs</span>
+                        <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 0.25rem;">
+                            <span id="lastUpdated">Never</span>
+                            <span id="refreshIndicator" style="display: none; color: var(--accent);"> • Refreshing...</span>
+                            <span style="margin-left: 10px; color: var(--text-tertiary);">• Logs show historical status at time of request</span>
+                        </div>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-secondary btn-sm" onclick="toggleAutoRefresh()" id="autoRefreshBtn">
+                            Auto-refresh: <span id="autoRefreshStatus">ON</span>
+                        </button>
+                        <button class="btn btn-secondary btn-sm" onclick="loadDNSLogs()">Refresh Now</button>
+                        <button class="btn btn-danger btn-sm" onclick="clearLogs()">Clear</button>
+                    </div>
+                </div>
+                <div class="log-container" id="logsTable">
+                    <div class="empty-state">Loading logs...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tools Tab -->
+        <div id="tab-tools" class="tab-content">
+            <div class="card">
+                <div class="card-header">Domain Discovery Tool</div>
+                <p>Analyze a website and discover all domains it uses. Compare how they resolve with SmartDNS vs default DNS.</p>
+
+                <div style="margin: 20px 0;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">Website URL</label>
+                    <input type="text" id="discoverUrl" placeholder="https://www.hulu.com" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px;">
+                </div>
+
+                <div style="margin: 20px 0;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">SmartDNS Service to Test</label>
+                    <select id="discoverServerSelect" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px;">
+                        <option value="">Select a DNS service...</option>
+                    </select>
+                </div>
+
+                <button onclick="discoverDomains()" class="btn btn-primary" style="margin-bottom: 20px;">
+                    Discover Domains
+                </button>
+
+                <div id="discoverLoading" style="display: none; text-align: center; padding: 20px;">
+                    <div style="color: var(--primary);">Analyzing website and testing domains...</div>
+                </div>
+
+                <div id="discoverResults" style="display: none;">
+                    <div class="card-header" style="margin-top: 20px;">Discovery Results</div>
+                    <div id="discoverResultsContent"></div>
+
+                    <div style="margin-top: 20px; padding: 15px; background: var(--hover); border-radius: 4px;">
+                        <button onclick="addSelectedDomains()" class="btn btn-primary">
+                            Add Selected Domains as Rules
+                        </button>
+                        <button onclick="selectAllRecommended()" class="btn" style="margin-left: 10px;">
+                            Select All Recommended
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div id="tab-settings" class="tab-content">
+            <div class="card">
+                <div class="card-header">Network Information</div>
+                <table>
+                    <tr>
+                        <td><strong>DNS Server Address</strong></td>
+                        <td id="serverAddress">Loading...</td>
+                    </tr>
+                    <tr>
+                        <td><strong>DNS Port</strong></td>
+                        <td>53 (UDP)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>DNS-over-TLS Port</strong></td>
+                        <td id="dotPortStatus">853 (TCP-TLS) - <span id="dotStatusBadge">Checking...</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Web Interface Port</strong></td>
+                        <td>8080 (TCP)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Your IP Address</strong></td>
+                        <td id="clientIp">Loading...</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div class="card">
+                <div class="card-header">DNS Configuration</div>
+                <div class="alert alert-info">
+                    To use this DNS proxy, configure your device or router with the following DNS server address:
+                </div>
+                <div class="code-block" id="dnsConfig">
+nameserver <span id="dnsIp">Loading...</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">DNS Configuration for Android</div>
+                <div class="alert alert-info">
+                    <strong>Recommended: Use Regular DNS (No Certificate Needed)</strong>
+                    <ol style="margin: 10px 0; padding-left: 20px; line-height: 1.8;">
+                        <li>Open <strong>Settings</strong> → <strong>Network & internet</strong> → <strong>Wi-Fi</strong></li>
+                        <li>Long-press on your connected network</li>
+                        <li>Tap <strong>Modify network</strong> → <strong>Advanced options</strong></li>
+                        <li>Change <strong>IP settings</strong> from DHCP to <strong>Static</strong></li>
+                        <li>Keep all values the same EXCEPT:</li>
+                        <li>Set <strong>DNS 1</strong> to: <strong><span id="regularDnsIp">Loading...</span></strong></li>
+                        <li>Clear <strong>DNS 2</strong> (leave empty)</li>
+                        <li>Tap <strong>Save</strong></li>
+                    </ol>
+                    <p style="margin-top: 10px;"><strong>This is easier and doesn't require certificates!</strong> All your DNS requests will go through SmartDNS.</p>
+                </div>
+
+                <div id="dotStatus" class="alert alert-info" style="margin-top: 20px;">
+                    Checking DNS-over-TLS status...
+                </div>
+                <div id="dotCertSection" style="display: none;">
+                    <div class="alert alert-warning">
+                        <strong>Advanced: DNS-over-TLS (Private DNS) - Requires Router Configuration</strong>
+                        <p><strong>⚠️ Note:</strong> Private DNS with hostname requires your router to have a DNS entry for <code id="dotHostnameWarning">smartdns.lan</code>. If you get "can't access DNS" errors, use the Regular DNS method above instead.</p>
+                        <ol style="margin: 10px 0; padding-left: 20px; line-height: 1.8;">
+                            <li><strong>Download the certificate:</strong> Click the button below to download <code>smartdns.crt</code></li>
+                            <li><strong>Open Android Settings</strong> → <strong>Security</strong> (or <strong>Security & Privacy</strong>)</li>
+                            <li>Tap <strong>Encryption & credentials</strong> → <strong>Install a certificate</strong></li>
+                            <li><strong>Important:</strong> Select <strong>CA certificate</strong> (NOT "VPN & app user certificate")</li>
+                            <li>Tap <strong>Install anyway</strong> when warned</li>
+                            <li>Navigate to your Downloads folder and select <code>smartdns.crt</code></li>
+                            <li>After installation, go to <strong>Settings</strong> → <strong>Network & internet</strong> → <strong>Private DNS</strong></li>
+                            <li>Select <strong>Private DNS provider hostname</strong></li>
+                            <li>Enter your server hostname: <strong><code id="dotServerHostname">Loading...</code></strong> (use the hostname, not the IP address)</li>
+                            <li>Tap <strong>Save</strong> - you should see "Private DNS is active"</li>
+                        </ol>
+                        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin: 10px 0;">
+                            <strong>⚠️ Important:</strong> You MUST select <strong>"CA certificate"</strong> during installation, not "VPN & app user certificate". This is critical for Private DNS to work.
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="downloadCertificate()">Download TLS Certificate (smartdns.crt)</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">Backup & Restore</div>
+                <div class="alert alert-info">
+                    Export your configuration to backup all services and domain rules. Import a configuration file to restore settings.
+                </div>
+                <div id="importExportAlert"></div>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="exportSettings()">Export Configuration</button>
+                    <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">Import Configuration</button>
+                    <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importSettings(event)">
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">About</div>
+                <table>
+                    <tr>
+                        <td><strong>Application</strong></td>
+                        <td>SmartDNS Proxy</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Version</strong></td>
+                        <td>1.0.0</td>
+                    </tr>
+                    <tr>
+                        <td><strong>License</strong></td>
+                        <td>MIT</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api';
+        let allServers = [];
+        let allRules = [];
+
+        // Theme management
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        }
+
+        // Load theme preference
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+
+        // Tab switching
+        function switchTab(tabName, event) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+
+            // If called from a click event, highlight the clicked tab
+            if (event && event.target) {
+                event.target.classList.add('active');
+            } else {
+                // If called programmatically, find and highlight the matching tab button
+                document.querySelectorAll('.tab').forEach(tab => {
+                    if (tab.getAttribute('onclick') && tab.getAttribute('onclick').includes(tabName)) {
+                        tab.classList.add('active');
+                    }
+                });
+            }
+        }
+
+        // Get client IP and server IP
+        async function getClientIp() {
+            try {
+                // Get local server IP and hostname for DNS configuration
+                const [localResponse, hostnameResponse] = await Promise.all([
+                    fetch(`${API_BASE}/system/ip`),
+                    fetch(`${API_BASE}/system/hostname`)
+                ]);
+                const localData = await localResponse.json();
+                const hostnameData = await hostnameResponse.json();
+                const localIP = localData.local_ip;
+                const hostnameLan = hostnameData.hostname_lan;
+
+                // Use local IP for DNS server addresses
+                document.getElementById('dnsServerIP').textContent = localIP;
+                document.getElementById('serverAddress').textContent = localIP;
+                document.getElementById('dnsIp').textContent = localIP;
+                document.getElementById('regularDnsIp').textContent = localIP;
+                document.getElementById('dotServerHostname').textContent = hostnameLan;
+                document.getElementById('dotHostnameWarning').textContent = hostnameLan;
+
+                // Get external IP for display in navbar
+                try {
+                    const externalResponse = await fetch('https://api.ipify.org?format=json');
+                    const externalData = await externalResponse.json();
+                    document.getElementById('currentIp').textContent = externalData.ip;
+                    document.getElementById('clientIp').textContent = externalData.ip;
+                } catch (error) {
+                    // If external IP fetch fails, use local IP
+                    document.getElementById('currentIp').textContent = localIP;
+                    document.getElementById('clientIp').textContent = localIP;
+                }
+            } catch (error) {
+                console.error('Error fetching IP:', error);
+                document.getElementById('currentIp').textContent = 'localhost';
+                document.getElementById('clientIp').textContent = 'Unable to detect';
+                document.getElementById('dnsServerIP').textContent = 'localhost';
+                document.getElementById('serverAddress').textContent = 'localhost';
+                document.getElementById('dnsIp').textContent = 'localhost';
+                document.getElementById('regularDnsIp').textContent = 'localhost';
+                document.getElementById('dotServerHostname').textContent = 'localhost';
+                document.getElementById('dotHostnameWarning').textContent = 'localhost';
+            }
+        }
+
+        // Certificate functions
+        async function checkCertificateStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/system/cert/status`);
+                const status = await response.json();
+
+                const statusBadge = document.getElementById('dotStatusBadge');
+                const dotStatus = document.getElementById('dotStatus');
+                const dotCertSection = document.getElementById('dotCertSection');
+
+                if (status.enabled) {
+                    statusBadge.innerHTML = '<span class="badge badge-success">Enabled</span>';
+                    dotStatus.className = 'alert alert-success';
+                    dotStatus.innerHTML = '<strong>DNS-over-TLS is enabled!</strong> You can use Private DNS on your Android device or other DoT-compatible clients.';
+                    dotCertSection.style.display = 'block';
+                } else {
+                    statusBadge.innerHTML = '<span class="badge badge-danger">Disabled</span>';
+                    dotStatus.className = 'alert alert-warning';
+                    dotStatus.innerHTML = '<strong>DNS-over-TLS is not enabled.</strong> Generate certificates by running: <code>docker exec smartdns sh /app/generate-certs.sh</code> then restart the container.';
+                    dotCertSection.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error checking certificate status:', error);
+                document.getElementById('dotStatusBadge').textContent = 'Unknown';
+            }
+        }
+
+        async function downloadCertificate() {
+            try {
+                const response = await fetch(`${API_BASE}/system/cert`);
+
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        alert('Certificate not found. Please generate certificates first.');
+                    } else {
+                        alert('Failed to download certificate');
+                    }
+                    return;
+                }
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'smartdns.crt';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('Error downloading certificate:', error);
+                alert('Failed to download certificate');
+            }
+        }
+
+        // Load services overview
+        async function loadServicesOverview() {
+            try {
+                const [serversResponse, rulesResponse] = await Promise.all([
+                    fetch(`${API_BASE}/servers`),
+                    fetch(`${API_BASE}/rules`)
+                ]);
+
+                const servers = await serversResponse.json();
+                const rules = await rulesResponse.json();
+                allServers = servers;
+                allRules = rules;
+
+                document.getElementById('totalServices').textContent = servers.length;
+                document.getElementById('totalRules').textContent = rules.length;
+
+                const domainCounts = {};
+                rules.forEach(rule => {
+                    domainCounts[rule.server_id] = (domainCounts[rule.server_id] || 0) + 1;
+                });
+
+                const container = document.getElementById('servicesOverview');
+                if (servers.length === 0) {
+                    container.innerHTML = '<div class="empty-state">No services configured. Add your first DNS service!</div>';
+                    return;
+                }
+
+                let html = '<div class="services-grid">';
+                servers.forEach(server => {
+                    const count = domainCounts[server.id] || 0;
+                    html += `
+                        <div class="service-card">
+                            <div class="service-name">${server.name}</div>
+                            <div class="service-dns">
+                                Primary: ${server.primary}<br>
+                                Secondary: ${server.secondary || 'None'}
+                            </div>
+                            <div class="service-count">${count} domain${count !== 1 ? 's' : ''}</div>
+                            <div class="btn-group">
+                                <button class="btn btn-secondary btn-sm" onclick="viewServiceDomains(${server.id}, '${server.name.replace(/'/g, "\\'")}')">View</button>
+                                <button class="btn btn-primary btn-sm" onclick="addDomainToService(${server.id})">Add Domains</button>
+                                <button class="btn btn-secondary btn-sm" onclick="renameServer(${server.id}, '${server.name.replace(/'/g, "\\'")}', '${server.primary}', '${server.secondary || ''}')">Rename</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+
+                loadServicesManagement(servers, domainCounts);
+            } catch (error) {
+                console.error('Error loading services:', error);
+            }
+        }
+
+        // Load services management
+        function loadServicesManagement(servers, domainCounts) {
+            const container = document.getElementById('servicesManagement');
+            if (servers.length === 0) {
+                container.innerHTML = '<div class="empty-state">No services configured</div>';
+                return;
+            }
+
+            let html = '<div class="table-container"><table><thead><tr><th>Name</th><th>Primary DNS</th><th>Secondary DNS</th><th>Domains</th><th>Actions</th></tr></thead><tbody>';
+            servers.forEach(server => {
+                const count = domainCounts[server.id] || 0;
+                html += `
+                    <tr>
+                        <td><strong>${server.name}</strong></td>
+                        <td>${server.primary}</td>
+                        <td>${server.secondary || '-'}</td>
+                        <td><span class="badge badge-primary">${count}</span></td>
+                        <td>
+                            <div class="btn-group">
+                                <button class="btn btn-secondary btn-sm" onclick="renameServer(${server.id}, '${server.name.replace(/'/g, "\\'")}', '${server.primary}', '${server.secondary || ''}')">Rename</button>
+                                <button class="btn btn-danger btn-sm" onclick="deleteServer(${server.id})">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+        }
+
+        // View service domains
+        function viewServiceDomains(serverId, serviceName) {
+            const serviceDomains = allRules.filter(rule => rule.server_id === serverId);
+            if (serviceDomains.length === 0) {
+                alert(`No domains configured for ${serviceName}`);
+                return;
+            }
+            const domainList = serviceDomains.map(r => r.domain).join('\n');
+            alert(`Domains using ${serviceName}:\n\n${domainList}`);
+        }
+
+        // Add domain to service
+        function addDomainToService(serverId) {
+            switchTab('domains');
+            setTimeout(() => {
+                document.getElementById('dnsServer').value = serverId;
+                document.getElementById('bulkDnsServer').value = serverId;
+                document.getElementById('domain').focus();
+            }, 100);
+        }
+
+        // Load DNS servers
+        async function loadDNSServers() {
+            try {
+                const response = await fetch(`${API_BASE}/servers`);
+                const servers = await response.json();
+
+                const selects = document.querySelectorAll('#dnsServer, #bulkDnsServer');
+                selects.forEach(select => {
+                    select.innerHTML = '<option value="">Select a service...</option>';
+                    servers.forEach(server => {
+                        const option = document.createElement('option');
+                        option.value = server.id;
+                        option.textContent = `${server.name} (${server.primary})`;
+                        select.appendChild(option);
+                    });
+                });
+            } catch (error) {
+                console.error('Error loading DNS servers:', error);
+            }
+        }
+
+        // Load domain rules
+        let allDomainRules = []; // Store all rules for filtering
+
+        async function loadDomainRules() {
+            try {
+                const response = await fetch(`${API_BASE}/rules`);
+                const rules = await response.json();
+                allDomainRules = rules; // Store for filtering
+
+                displayDomainRules(rules);
+            } catch (error) {
+                console.error('Error loading rules:', error);
+            }
+        }
+
+        function displayDomainRules(rules) {
+            const container = document.getElementById('rulesTable');
+            if (rules.length === 0) {
+                container.innerHTML = '<div class="empty-state">No domain rules found</div>';
+                return;
+            }
+
+            let html = '<table><thead><tr><th>Domain</th><th>DNS Service</th><th>Actions</th></tr></thead><tbody>';
+            rules.forEach(rule => {
+                html += `
+                    <tr>
+                        <td><code>${rule.domain}</code></td>
+                        <td><span class="badge badge-primary">${rule.server_name}</span></td>
+                        <td>
+                            <button class="btn btn-danger btn-sm" onclick="deleteRule(${rule.id})">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        function filterDomains() {
+            const searchTerm = document.getElementById('domainSearch').value.toLowerCase();
+
+            if (!searchTerm) {
+                displayDomainRules(allDomainRules);
+                return;
+            }
+
+            const filtered = allDomainRules.filter(rule => {
+                return rule.domain.toLowerCase().includes(searchTerm) ||
+                       rule.server_name.toLowerCase().includes(searchTerm);
+            });
+
+            displayDomainRules(filtered);
+        }
+
+        // Load DNS logs
+        async function loadDNSLogs() {
+            try {
+                const response = await fetch(`${API_BASE}/logs?limit=200`);
+                const logs = await response.json();
+
+                document.getElementById('totalRequests').textContent = logs.length;
+
+                const container = document.getElementById('logsTable');
+                if (logs.length === 0) {
+                    container.innerHTML = '<div class="empty-state">No DNS requests logged</div>';
+                    return;
+                }
+
+                // Fetch servers for the dropdowns
+                const serversResponse = await fetch(`${API_BASE}/servers`);
+                const servers = await serversResponse.json();
+
+                // Build server options HTML
+                let serverOptions = '<option value="">Add to...</option>';
+                servers.forEach(server => {
+                    serverOptions += `<option value="${server.id}">${server.name}</option>`;
+                });
+
+                let html = '<div class="log-entry" style="background: var(--bg-secondary); font-weight: 600;"><div>Time</div><div>Domain</div><div>Type</div><div>Server</div><div>Client</div><div>Proxy</div><div>Action</div></div>';
+                logs.forEach((log, index) => {
+                    const time = new Date(log.timestamp).toLocaleTimeString();
+                    const proxiedBadge = log.is_proxied ?
+                        '<span class="badge badge-success">Yes</span>' :
+                        '<span class="badge badge-danger">No</span>';
+
+                    // Use data attributes and index instead of inline event handlers
+                    const selectId = `select-${index}`;
+                    const action = !log.is_proxied ?
+                        `<select id="${selectId}" class="form-select quick-add-select" data-domain="${log.domain}" style="font-size: 0.75rem; padding: 4px 8px; min-width: 120px; cursor: pointer; z-index: 10;">
+                            ${serverOptions}
+                        </select>` :
+                        '-';
+
+                    // Display client info: hostname if available, otherwise IP
+                    let clientDisplay = log.client_ip || '-';
+                    if (log.client_host && log.client_host !== log.client_ip) {
+                        clientDisplay = `<span title="${log.client_ip}" style="cursor: help;">${log.client_host}</span>`;
+                    }
+
+                    html += `
+                        <div class="log-entry">
+                            <div class="log-time">${time}</div>
+                            <div class="log-domain">${log.domain}</div>
+                            <div>${log.query_type}</div>
+                            <div class="log-server">${log.server_used}</div>
+                            <div style="font-size: 0.75rem;">${clientDisplay}</div>
+                            <div>${proxiedBadge}</div>
+                            <div>${action}</div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+
+                // Attach event listeners after HTML is inserted
+                const selects = document.querySelectorAll('.quick-add-select');
+                console.log(`Found ${selects.length} quick-add dropdowns`);
+                selects.forEach((select, idx) => {
+                    // Use change event - works reliably across all browsers
+                    select.addEventListener('change', function(e) {
+                        const domain = this.getAttribute('data-domain');
+                        const serverId = this.value;
+                        if (serverId) {
+                            quickAddDomainFromSelect(domain, serverId, this);
+                        }
+                    });
+                });
+            } catch (error) {
+                console.error('Error loading logs:', error);
+            }
+        }
+
+        // Form submissions
+        document.getElementById('addServiceForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('serviceName').value.trim();
+            const primary = document.getElementById('servicePrimary').value.trim();
+            const secondary = document.getElementById('serviceSecondary').value.trim();
+
+            // Validate inputs
+            if (!name) {
+                showAlert('addServiceAlert', 'Service name cannot be empty', 'error');
+                return;
+            }
+            if (!primary) {
+                showAlert('addServiceAlert', 'Primary DNS server cannot be empty', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/servers`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, primary, secondary })
+                });
+
+                if (response.ok) {
+                    showAlert('addServiceAlert', 'Service added successfully', 'success');
+                    document.getElementById('addServiceForm').reset();
+                    loadDNSServers();
+                    loadServicesOverview();
+                } else {
+                    const errorText = await response.text();
+                    showAlert('addServiceAlert', errorText || 'Failed to add service', 'error');
+                }
+            } catch (error) {
+                showAlert('addServiceAlert', 'Error adding service: ' + error.message, 'error');
+            }
+        });
+
+        document.getElementById('addRuleForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const domain = document.getElementById('domain').value.trim();
+            const serverId = document.getElementById('dnsServer').value;
+
+            // Validate inputs
+            if (!domain || domain === '') {
+                showAlert('addRuleAlert', 'Domain cannot be empty', 'error');
+                return;
+            }
+            if (!serverId || serverId === '' || serverId === 'Select a service...') {
+                showAlert('addRuleAlert', 'Please select a DNS service', 'error');
+                return;
+            }
+
+            const serverIdNum = parseInt(serverId);
+            if (isNaN(serverIdNum) || serverIdNum <= 0) {
+                showAlert('addRuleAlert', 'Invalid DNS service selected', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/rules`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ domain, server_id: serverIdNum })
+                });
+
+                if (response.ok) {
+                    showAlert('addRuleAlert', 'Domain rule added successfully', 'success');
+                    document.getElementById('addRuleForm').reset();
+                    loadDomainRules();
+                    loadServicesOverview();
+                } else {
+                    const errorText = await response.text();
+                    showAlert('addRuleAlert', errorText || 'Failed to add rule', 'error');
+                }
+            } catch (error) {
+                showAlert('addRuleAlert', 'Error adding rule: ' + error.message, 'error');
+            }
+        });
+
+        document.getElementById('bulkImportForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const domains = document.getElementById('bulkDomains').value.trim();
+            const serverId = document.getElementById('bulkDnsServer').value;
+
+            // Validate inputs
+            if (!domains || domains === '') {
+                showAlert('bulkImportAlert', 'Please enter at least one domain', 'error');
+                return;
+            }
+            if (!serverId || serverId === '' || serverId === 'Select a service...') {
+                showAlert('bulkImportAlert', 'Please select a DNS service', 'error');
+                return;
+            }
+
+            const serverIdNum = parseInt(serverId);
+            if (isNaN(serverIdNum) || serverIdNum <= 0) {
+                showAlert('bulkImportAlert', 'Invalid DNS service selected', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/rules/bulk`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ domains, server_id: serverIdNum })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    let message = `Successfully imported ${result.added} domain(s)`;
+                    if (result.skipped > 0) {
+                        message += `. Skipped ${result.skipped} duplicate(s)`;
+                        if (result.skipped_details && result.skipped_details.length > 0) {
+                            // Show first few skipped domains
+                            const preview = result.skipped_details.slice(0, 3).join(', ');
+                            message += `: ${preview}`;
+                            if (result.skipped_details.length > 3) {
+                                message += `, and ${result.skipped_details.length - 3} more`;
+                            }
+                        }
+                    }
+                    showAlert('bulkImportAlert', message, result.skipped > 0 ? 'info' : 'success');
+                    document.getElementById('bulkImportForm').reset();
+                    loadDomainRules();
+                    loadServicesOverview();
+                } else {
+                    const errorText = await response.text();
+                    showAlert('bulkImportAlert', errorText || 'Failed to bulk import', 'error');
+                }
+            } catch (error) {
+                showAlert('bulkImportAlert', 'Error importing domains: ' + error.message, 'error');
+            }
+        });
+
+        // Delete operations
+        async function deleteRule(id) {
+            if (!confirm('Delete this domain rule?')) return;
+            try {
+                const response = await fetch(`${API_BASE}/rules/${id}`, { method: 'DELETE' });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    alert(`Failed to delete rule: ${errorText}`);
+                    return;
+                }
+                loadDomainRules();
+                loadServicesOverview();
+            } catch (error) {
+                alert('Error deleting rule: ' + error.message);
+            }
+        }
+
+        async function deleteServer(id) {
+            if (!confirm('Delete this service? All associated domain rules will be removed.')) return;
+            try {
+                const response = await fetch(`${API_BASE}/servers/${id}`, { method: 'DELETE' });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    alert(`Failed to delete service: ${errorText}`);
+                    return;
+                }
+                loadDNSServers();
+                loadDomainRules();
+                loadServicesOverview();
+            } catch (error) {
+                alert('Error deleting service: ' + error.message);
+            }
+        }
+
+        async function renameServer(id, currentName, currentPrimary, currentSecondary) {
+            const newName = prompt('Enter new service name:', currentName);
+            if (!newName || newName === currentName) return;
+
+            // Validate input
+            if (!newName.trim()) {
+                alert('Service name cannot be empty');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/servers/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: newName.trim(),
+                        primary: currentPrimary,
+                        secondary: currentSecondary || ''
+                    })
+                });
+
+                if (response.ok) {
+                    loadDNSServers();
+                    loadServicesOverview();
+                } else {
+                    const errorText = await response.text();
+                    alert(`Failed to rename service: ${errorText}`);
+                }
+            } catch (error) {
+                alert('Error renaming service: ' + error.message);
+            }
+        }
+
+        async function clearLogs() {
+            if (!confirm('Clear all DNS logs?')) return;
+            try {
+                const response = await fetch(`${API_BASE}/logs/clear`, { method: 'POST' });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    alert(`Failed to clear logs: ${errorText}`);
+                    return;
+                }
+                loadDNSLogs();
+            } catch (error) {
+                alert('Error clearing logs: ' + error.message);
+            }
+        }
+
+        async function quickAddDomainFromSelect(domain, serverId, selectElement) {
+            if (!serverId) return; // User selected placeholder
+
+            try {
+                const response = await fetch(`${API_BASE}/rules`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ domain, server_id: parseInt(serverId) })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+
+                    // Handle different error types
+                    if (response.status === 409) {
+                        // Duplicate or already covered
+                        const logEntry = selectElement.closest('.log-entry');
+                        if (logEntry) {
+                            const actionCell = selectElement.parentElement;
+                            actionCell.innerHTML = '<span class="badge badge-warning" style="font-size: 0.65rem;">Already covered</span>';
+                        }
+                        selectElement.value = '';
+                        return; // Don't show error alert for duplicates
+                    }
+
+                    throw new Error(errorText || `Server returned ${response.status}`);
+                }
+
+                // Reset the dropdown
+                selectElement.value = '';
+
+                // Show brief success feedback
+                selectElement.style.border = '2px solid var(--success)';
+
+                // Update the UI to show the domain is now proxied
+                const logEntry = selectElement.closest('.log-entry');
+                if (logEntry) {
+                    logEntry.style.background = 'rgba(72, 187, 120, 0.1)';
+                    logEntry.style.borderLeft = '3px solid var(--success)';
+
+                    // Add a "Now proxied!" indicator
+                    const actionCell = selectElement.parentElement;
+                    actionCell.innerHTML = '<span class="badge badge-success">✓ Added!</span>';
+                }
+
+                setTimeout(() => {
+                    selectElement.style.border = '';
+                    loadDomainRules();
+                    loadDNSLogs();
+                    loadServicesOverview();
+                }, 1500);
+            } catch (error) {
+                console.error('Error adding rule:', error);
+                alert('Error adding rule: ' + error.message);
+                selectElement.value = '';
+                // Show error feedback
+                selectElement.style.border = '2px solid var(--danger)';
+                setTimeout(() => {
+                    selectElement.style.border = '';
+                }, 2000);
+            }
+        }
+
+        function showAlert(elementId, message, type) {
+            const alertDiv = document.getElementById(elementId);
+            alertDiv.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+            setTimeout(() => alertDiv.innerHTML = '', 5000);
+        }
+
+        // Import/Export functions
+        async function exportSettings() {
+            try {
+                const response = await fetch(`${API_BASE}/export`);
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `smartdns-config-${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                showAlert('importExportAlert', 'Configuration exported successfully', 'success');
+            } catch (error) {
+                showAlert('importExportAlert', 'Error exporting configuration', 'error');
+            }
+        }
+
+        async function importSettings(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (!confirm('Importing will add new services and domain rules to your configuration. Existing rules will not be removed. Continue?')) {
+                event.target.value = '';
+                return;
+            }
+
+            try {
+                const text = await file.text();
+                const config = JSON.parse(text);
+
+                const response = await fetch(`${API_BASE}/import`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    showAlert('importExportAlert',
+                        `Configuration imported successfully! ${result.servers_imported} services and ${result.rules_imported} domain rules added.`,
+                        'success');
+                    loadDNSServers();
+                    loadDomainRules();
+                    loadServicesOverview();
+                } else {
+                    const errorText = await response.text();
+                    showAlert('importExportAlert', `Import failed: ${errorText}`, 'error');
+                }
+            } catch (error) {
+                if (error instanceof SyntaxError) {
+                    showAlert('importExportAlert', 'Invalid JSON file. Please check the file format.', 'error');
+                } else {
+                    showAlert('importExportAlert', 'Error importing configuration: ' + error.message, 'error');
+                }
+            }
+
+            event.target.value = '';
+        }
+
+        // Auto-refresh management
+        let autoRefreshEnabled = true;
+        let autoRefreshInterval = null;
+        let currentTab = 'dashboard';
+
+        function toggleAutoRefresh() {
+            autoRefreshEnabled = !autoRefreshEnabled;
+            document.getElementById('autoRefreshStatus').textContent = autoRefreshEnabled ? 'ON' : 'OFF';
+
+            if (autoRefreshEnabled && currentTab === 'logs') {
+                startAutoRefresh();
+            } else {
+                stopAutoRefresh();
+            }
+        }
+
+        function startAutoRefresh() {
+            if (autoRefreshInterval) return;
+            autoRefreshInterval = setInterval(() => {
+                if (autoRefreshEnabled && currentTab === 'logs') {
+                    loadDNSLogs();
+                }
+            }, 5000); // Refresh every 5 seconds
+        }
+
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+        }
+
+        // Override switchTab to track current tab
+        const originalSwitchTab = switchTab;
+        switchTab = function(tabName) {
+            currentTab = tabName;
+            originalSwitchTab(tabName);
+
+            // Start auto-refresh when on logs tab
+            if (tabName === 'logs' && autoRefreshEnabled) {
+                startAutoRefresh();
+                loadDNSLogs(); // Immediate refresh when switching to logs
+            } else {
+                stopAutoRefresh();
+            }
+        };
+
+        // Update loadDNSLogs to show refresh indicator and timestamp
+        const originalLoadDNSLogs = loadDNSLogs;
+        loadDNSLogs = async function() {
+            const indicator = document.getElementById('refreshIndicator');
+            if (indicator) indicator.style.display = 'inline';
+
+            await originalLoadDNSLogs();
+
+            const lastUpdated = document.getElementById('lastUpdated');
+            if (lastUpdated) {
+                const now = new Date();
+                lastUpdated.textContent = `Last updated: ${now.toLocaleTimeString()}`;
+            }
+
+            if (indicator) indicator.style.display = 'none';
+        };
+
+        // Tools - Domain Discovery
+        let discoveredDomains = [];
+
+        async function loadDiscoverServers() {
+            try {
+                const response = await fetch('/api/servers');
+                const servers = await response.json();
+
+                const select = document.getElementById('discoverServerSelect');
+                select.innerHTML = '<option value="">Select a DNS service...</option>';
+
+                servers.forEach(server => {
+                    const option = document.createElement('option');
+                    option.value = server.id;
+                    option.textContent = server.name;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading servers:', error);
+            }
+        }
+
+        async function discoverDomains() {
+            const url = document.getElementById('discoverUrl').value.trim();
+            const serverId = parseInt(document.getElementById('discoverServerSelect').value);
+
+            if (!url) {
+                alert('Please enter a website URL');
+                return;
+            }
+
+            if (!serverId) {
+                alert('Please select a SmartDNS service');
+                return;
+            }
+
+            // Show loading
+            document.getElementById('discoverLoading').style.display = 'block';
+            document.getElementById('discoverResults').style.display = 'none';
+
+            try {
+                const response = await fetch('/api/tools/discover', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, server_id: serverId })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Server error (${response.status}): ${errorText}`);
+                }
+
+                const data = await response.json();
+                discoveredDomains = data.domains || [];
+
+                // Display results
+                displayDiscoveryResults(data);
+
+                document.getElementById('discoverLoading').style.display = 'none';
+                document.getElementById('discoverResults').style.display = 'block';
+            } catch (error) {
+                console.error('Error discovering domains:', error);
+                alert('Failed to discover domains: ' + error.message);
+                document.getElementById('discoverLoading').style.display = 'none';
+            }
+        }
+
+        function displayDiscoveryResults(data) {
+            const container = document.getElementById('discoverResultsContent');
+
+            if (!data.domains || data.domains.length === 0) {
+                container.innerHTML = '<div class="empty-state">No domains discovered</div>';
+                return;
+            }
+
+            let html = '<div style="margin-top: 15px;"><table><thead><tr>';
+            html += '<th><input type="checkbox" id="selectAllDomains" onchange="toggleAllDomains(this.checked)"></th>';
+            html += '<th>Domain</th>';
+            html += '<th>SmartDNS IPs</th>';
+            html += '<th>Default DNS IPs</th>';
+            html += '<th>Status</th>';
+            html += '</tr></thead><tbody>';
+
+            data.domains.forEach((item, index) => {
+                const recommended = item.recommended ? 'recommended' : '';
+                const differs = item.differs ? 'differs' : 'same';
+
+                html += '<tr>';
+                html += `<td><input type="checkbox" class="domain-checkbox ${recommended}" data-index="${index}" ${item.recommended ? 'checked' : ''}></td>`;
+                html += `<td><strong>${item.domain}</strong></td>`;
+                html += `<td><small>${item.smart_ips.slice(0, 2).join(', ') || 'N/A'}${item.smart_ips.length > 2 ? '...' : ''}</small></td>`;
+                html += `<td><small>${item.default_ips.slice(0, 2).join(', ') || 'N/A'}${item.default_ips.length > 2 ? '...' : ''}</small></td>`;
+
+                if (item.differs) {
+                    html += '<td><span class="badge badge-warning">Different IPs</span></td>';
+                } else if (item.recommended) {
+                    html += '<td><span class="badge badge-success">Recommended</span></td>';
+                } else {
+                    html += '<td><span class="badge">Same IPs</span></td>';
+                }
+
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+
+            html += '<div style="margin-top: 15px; padding: 10px; background: var(--hover); border-radius: 4px;">';
+            html += `<strong>Summary:</strong> Found ${data.domains.length} domains. `;
+            const recommended = data.domains.filter(d => d.recommended).length;
+            html += `${recommended} recommended for SmartDNS routing.`;
+            html += '</div>';
+
+            container.innerHTML = html;
+        }
+
+        function toggleAllDomains(checked) {
+            document.querySelectorAll('.domain-checkbox').forEach(checkbox => {
+                checkbox.checked = checked;
+            });
+        }
+
+        function selectAllRecommended() {
+            document.querySelectorAll('.domain-checkbox').forEach(checkbox => {
+                if (checkbox.classList.contains('recommended')) {
+                    checkbox.checked = true;
+                } else {
+                    checkbox.checked = false;
+                }
+            });
+        }
+
+        async function addSelectedDomains() {
+            const serverId = parseInt(document.getElementById('discoverServerSelect').value);
+            const selectedDomains = [];
+
+            document.querySelectorAll('.domain-checkbox:checked').forEach(checkbox => {
+                const index = parseInt(checkbox.dataset.index);
+                if (discoveredDomains[index]) {
+                    selectedDomains.push(discoveredDomains[index].domain);
+                }
+            });
+
+            // Remove duplicates
+            const uniqueDomains = [...new Set(selectedDomains)];
+
+            if (uniqueDomains.length === 0) {
+                alert('Please select at least one domain');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/rules/bulk', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        domains: uniqueDomains.join('\n'),
+                        server_id: serverId
+                    })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    let message = `Successfully added ${result.added} domain rules!`;
+                    if (result.skipped > 0) {
+                        message += `\n\nSkipped ${result.skipped} domain(s) that were already covered.`;
+                    }
+                    alert(message);
+                    loadDomainRules();
+                    loadServicesOverview();
+                    switchTab('domains');
+                } else {
+                    const errorText = await response.text();
+                    alert('Failed to add domains: ' + errorText);
+                }
+            } catch (error) {
+                console.error('Error adding domains:', error);
+                alert('Failed to add domains: ' + error.message);
+            }
+        }
+
+        // Initialize
+        getClientIp();
+        checkCertificateStatus();
+        loadDNSServers();
+        loadDomainRules();
+        loadServicesOverview();
+        loadDNSLogs();
+        loadDiscoverServers();
+
+        // Start auto-refresh for logs tab
+        startAutoRefresh();
+    </script>
+</body>
+</html>

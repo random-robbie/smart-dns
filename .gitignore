@@ -1,0 +1,53 @@
+# Binaries
+smartdns-proxy
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Database
+*.db
+*.db-journal
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Sensitive data
+data/
+*.key
+*.crt
+*.pem
+.env
+.env.local
+*.log
+
+# Claude Code
+.claude/
+.claude.json
+.claude.json.backup
+
+# SSH keys
+.ssh/
+
+# Build cache and history
+.cache/
+.ash_history
+.profile
+.config/
+.npm/
+.docker/
+go/
