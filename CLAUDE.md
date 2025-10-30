@@ -18,12 +18,12 @@ SmartDNS Proxy is a DNS proxy server with intelligent routing and web-based mana
 # Build Docker image
 docker build -t smartdns-proxy .
 
-# Run with persistent storage
+# Run with persistent storage and auto-restart
 docker run -d \
   --name smartdns \
   --network host \
   --cap-add=NET_BIND_SERVICE \
-  --restart unless-stopped \
+  --restart always \
   -v smartdns-data:/data \
   smartdns-proxy
 
@@ -42,7 +42,7 @@ docker stop smartdns && docker rm smartdns
 # Rebuild after code changes
 docker stop smartdns && docker rm smartdns
 docker build -t smartdns-proxy .
-docker run -d --name smartdns --network host --cap-add=NET_BIND_SERVICE --restart unless-stopped -v smartdns-data:/data smartdns-proxy
+docker run -d --name smartdns --network host --cap-add=NET_BIND_SERVICE --restart always -v smartdns-data:/data smartdns-proxy
 ```
 
 ### Development (Direct Go)

@@ -42,7 +42,7 @@ docker run -d \
   --name smartdns \
   --network host \
   --cap-add=NET_BIND_SERVICE \
-  --restart unless-stopped \
+  --restart always \
   -v smartdns-data:/data \
   smartdns-proxy
 ```
@@ -268,7 +268,10 @@ Configure your router's DNS settings to point to this server. This will automati
 
 ### Docker (Recommended)
 
-The Docker deployment already includes automatic restart with `--restart unless-stopped`. The container will automatically start on system boot.
+The Docker deployment includes automatic restart with `--restart always`. The container will:
+- ✅ **Automatically restart on failure** (if the container crashes)
+- ✅ **Start on system boot** (even after server reboots)
+- ✅ **Restart even if manually stopped** (until explicitly removed)
 
 **Check container status:**
 ```bash
