@@ -935,8 +935,11 @@ func resolveDomain(domain string, database *sql.DB, serverID int) []string {
 		return []string{}
 	}
 
-	// Use the DNS server to resolve
-	dnsServer := server.Primary + ":53"
+	// Use the DNS server to resolve (add :53 if no port specified)
+	dnsServer := server.Primary
+	if !strings.Contains(dnsServer, ":") {
+		dnsServer = dnsServer + ":53"
+	}
 
 	ips, err := net.LookupHost(domain)
 	if err != nil {

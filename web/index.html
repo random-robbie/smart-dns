@@ -677,11 +677,13 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label class="form-label">Primary DNS Server</label>
-                            <input type="text" class="form-input" id="servicePrimary" placeholder="1.1.1.1" required>
+                            <input type="text" class="form-input" id="servicePrimary" placeholder="1.1.1.1 or 192.168.1.1:5353" required>
+                            <div class="form-hint">IP address (port optional, defaults to :53)</div>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Secondary DNS Server</label>
-                            <input type="text" class="form-input" id="serviceSecondary" placeholder="8.8.8.8">
+                            <input type="text" class="form-input" id="serviceSecondary" placeholder="8.8.8.8 or 192.168.1.1:5354">
+                            <div class="form-hint">Optional backup server</div>
                         </div>
                     </div>
                     <button type="submit" class="btn btn-primary">Add Service</button>
@@ -2169,11 +2171,13 @@ nameserver <span id="dnsIp">Loading...</span>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Primary DNS Server</label>
-                        <input type="text" class="form-input" id="editServerPrimary" placeholder="1.1.1.1" required>
+                        <input type="text" class="form-input" id="editServerPrimary" placeholder="1.1.1.1 or 192.168.1.1:5353" required>
+                        <div class="form-hint">IP address (port optional, defaults to :53)</div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Secondary DNS Server</label>
-                        <input type="text" class="form-input" id="editServerSecondary" placeholder="8.8.8.8">
+                        <input type="text" class="form-input" id="editServerSecondary" placeholder="8.8.8.8 or 192.168.1.1:5354">
+                        <div class="form-hint">Optional backup server</div>
                     </div>
                 </form>
             </div>

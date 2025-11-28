@@ -212,6 +212,14 @@ func (p *DNSProxy) handleDNSRequest(w dns.ResponseWriter, r *dns.Msg) {
 	}
 }
 
+// addPortIfMissing adds :53 to an IP address if no port is specified
+func addPortIfMissing(addr string) string {
+	if strings.Contains(addr, ":") {
+		return addr
+	}
+	return addr + ":53"
+}
+
 func (p *DNSProxy) findDNSServers(domain string) ([]string, bool, string) {
 	// Check for exact match or parent domain match
 	checkDomain := domain
@@ -221,9 +229,9 @@ func (p *DNSProxy) findDNSServers(domain string) ([]string, bool, string) {
 			// Found a rule, get the DNS server
 			server, err := db.GetDNSServer(p.db, rule.ServerID)
 			if err == nil && server != nil {
-				servers := []string{server.Primary + ":53"}
+				servers := []string{addPortIfMissing(server.Primary)}
 				if server.Secondary != "" {
-					servers = append(servers, server.Secondary+":53")
+					servers = append(servers, addPortIfMissing(server.Secondary))
 				}
 				log.Printf("Using custom DNS for %s: %v", domain, servers)
 				return servers, true, server.Name
@@ -246,9 +254,9 @@ func (p *DNSProxy) findDNSServers(domain string) ([]string, bool, string) {
 		if err == nil && rule != nil {
 			server, err := db.GetDNSServer(p.db, rule.ServerID)
 			if err == nil && server != nil {
-				servers := []string{server.Primary + ":53"}
+				servers := []string{addPortIfMissing(server.Primary)}
 				if server.Secondary != "" {
-					servers = append(servers, server.Secondary+":53")
+					servers = append(servers, addPortIfMissing(server.Secondary))
 				}
 				log.Printf("Using custom DNS for %s (wildcard %s): %v", domain, wildcardDomain, servers)
 				return servers, true, server.Name
