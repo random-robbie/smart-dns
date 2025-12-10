@@ -39,6 +39,7 @@ data/
 .claude/
 .claude.json
 .claude.json.backup
+CLAUDE.md
 
 # SSH keys
 .ssh/

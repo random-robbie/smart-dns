@@ -1,25 +1,38 @@
 # SmartDNS Proxy
 
-A powerful DNS proxy server with intelligent routing and a web-based management interface. Route specific domains to specific DNS servers while using default DNS for everything else.
+A powerful DNS proxy server with SOCKS5 proxy support, intelligent routing, and a web-based management interface. Route specific domains to specific DNS servers and proxy traffic through SOCKS proxies based on domain rules.
 
 ## Features
 
+### DNS Proxy
 - **Service-Oriented Management**: Organize your DNS servers as "services" with beautiful overview cards
 - **Visual Dashboard**: See all your SmartDNS services at a glance with domain counts
 - **Intelligent DNS Routing**: Route specific domains/subdomains to specific DNS servers
 - **Wildcard Support**: Use `*.domain.com` to match all subdomains
 - **Domain Discovery Tool**: Analyze any website to automatically discover all domains it uses and test them against SmartDNS
 - **Client Tracking**: See which devices are making DNS requests with reverse DNS hostname resolution
-- **Intuitive Web Interface**: Easy-to-use tabbed interface with Overview, Services, Domains, Tools, and Logs
 - **DNS Request Logs**: View last 200 DNS requests in real-time with dropdown selection for quick domain assignment
+- **Dual-Stack DNS**: Full IPv4 and IPv6 support for modern networks
+- **DNS-over-TLS**: Encrypted DNS support for Android Private DNS and other devices
+
+### SOCKS5 Proxy (New!)
+- **Integrated SOCKS5 Server**: Full SOCKS5 proxy on port 1080
+- **Automatic DNS Integration**: All SOCKS connections use local DNS proxy rules automatically
+- **Domain-Based Routing**: Route specific domains through different upstream SOCKS proxies
+- **Proxy Chaining**: Connect to upstream SOCKS proxies based on domain rules
+- **Authentication Support**: Username/password authentication for upstream proxies
+- **Web Management**: Add, edit, enable/disable SOCKS proxies via web UI
+- **Direct Fallback**: Domains without proxy rules use direct connections
+
+### Management & Configuration
+- **Intuitive Web Interface**: Easy-to-use tabbed interface with Dashboard, Services, SOCKS Proxies, Domains, Tools, Logs, and Settings
 - **Quick-Add from Logs**: See unproxied domains and assign them to any service with a dropdown selector
 - **Bulk Import**: Import multiple domains at once (newline, comma, or space separated)
 - **Import/Export Configuration**: Export your entire configuration as JSON and import on other instances
 - **One-Click Domain Assignment**: Add domains to a specific service directly from the overview
 - **Multiple DNS Servers**: Pre-configured with SmartDNSProxy and NordVPN SmartDNS
 - **Persistent Storage**: All settings persist across Docker rebuilds using volume storage
-- **Dual-Stack DNS**: Full IPv4 and IPv6 support for modern networks
-- **Network-Wide**: Other machines on your network can use this as their DNS server
+- **Network-Wide**: Other machines on your network can use this as their DNS server and SOCKS proxy
 
 ## Quick Start
 
@@ -49,6 +62,8 @@ docker run -d \
 
 The application will start:
 - DNS Proxy: `0.0.0.0:53` (UDP - both IPv4 and IPv6)
+- DNS-over-TLS: `0.0.0.0:853` (TCP - if certificates exist)
+- SOCKS5 Proxy: `0.0.0.0:1080` (TCP)
 - Web Interface: `http://localhost:8080`
 
 **Managing the container:**
@@ -96,7 +111,35 @@ sudo ./smartdns-proxy
 
 The application will start:
 - DNS Proxy: `0.0.0.0:53` (UDP)
+- DNS-over-TLS: `0.0.0.0:853` (TCP - if certificates exist)
+- SOCKS5 Proxy: `0.0.0.0:1080` (TCP)
 - Web Interface: `http://localhost:8080`
+
+## Testing
+
+### Test DNS Proxy
+```bash
+# Test standard DNS lookup
+dig @localhost google.com
+
+# Test with nslookup
+nslookup google.com localhost
+```
+
+### Test SOCKS5 Proxy
+```bash
+# Test with curl
+curl -x socks5://localhost:1080 http://google.com
+
+# Test with authentication (if configured)
+curl -x socks5://username:password@localhost:1080 http://google.com
+
+# Configure your browser to use SOCKS proxy
+# Firefox: Settings → Network Settings → Manual proxy configuration
+# Chrome: Use system proxy or extensions like FoxyProxy
+```
+
+The SOCKS proxy automatically uses your DNS rules! Any domain you visit via SOCKS will be resolved using the same DNS server configured in your rules.
 
 ### Usage
 
@@ -116,13 +159,21 @@ The application will start:
    - Delete or manage existing services
    - See domain count for each service
 
-4. **Domains Tab** - Manage Domain Rules:
-   - Add single domain: Enter `netflix.com`, select service, click "Add Rule"
-   - Bulk import: Paste multiple domains, select service, click "Bulk Import"
-   - View all active domain rules in a table
-   - Rename domains or delete rules as needed
+4. **SOCKS Proxies Tab** - Manage SOCKS Proxy Servers:
+   - Add upstream SOCKS proxies (name, host, port)
+   - Configure authentication (username/password) if required
+   - Enable/disable proxies without deleting them
+   - Assign proxies to domains for automatic routing
+   - All SOCKS traffic uses your DNS rules automatically
 
-5. **Tools Tab** - Domain Discovery:
+5. **Domains Tab** - Manage Domain Rules:
+   - Add single domain: Enter `netflix.com`, select DNS service
+   - **Optional**: Select a SOCKS proxy for traffic routing
+   - Bulk import: Paste multiple domains, select service, click "Bulk Import"
+   - View all active domain rules with DNS service and SOCKS proxy info
+   - Delete rules as needed
+
+6. **Tools Tab** - Domain Discovery:
    - Enter any website URL (e.g., `https://www.hulu.com`)
    - Select which SmartDNS service to test against
    - Click "Discover Domains" to analyze the website
@@ -140,8 +191,10 @@ The application will start:
    - Logs auto-refresh every 10 seconds
 
 7. **Configure your network**:
-   - Point your device's DNS to this server's IP address
-   - Or configure your router to use this as the primary DNS
+   - **DNS**: Point your device's DNS to this server's IP address
+   - **Router**: Configure your router to use this as the primary DNS for all devices
+   - **SOCKS Proxy**: Configure your browser/apps to use `server-ip:1080` as SOCKS5 proxy
+     - This routes all traffic through the proxy while using your DNS rules automatically
 
 ## Pre-configured DNS Servers
 
@@ -426,6 +479,28 @@ Route specific domains through NordVPN:
 *.private-site.com -> NordVPN SmartDNS
 ```
 
+### SOCKS Proxy Routing with DNS Integration
+Route streaming services through SOCKS proxies while using SmartDNS:
+
+**Setup:**
+1. Add a SOCKS proxy in the **SOCKS Proxies** tab:
+   - Name: "Streaming Proxy"
+   - Host: `proxy.example.com`
+   - Port: `1080`
+   - Username/Password: (if required)
+
+2. Assign domains to use both DNS and SOCKS proxy:
+   - Domain: `netflix.com`
+   - DNS Service: `SmartDNSProxy`
+   - SOCKS Proxy: `Streaming Proxy`
+
+3. Configure your browser to use SOCKS proxy: `server-ip:1080`
+
+**Result:**
+- `netflix.com` → DNS resolved via SmartDNSProxy → Traffic routed through Streaming Proxy
+- `google.com` → DNS resolved normally → Direct connection (no proxy)
+- All connections automatically follow DNS rules!
+
 ### Development Setup
 Route local development domains to your router:
 ```
@@ -461,13 +536,19 @@ smartdns-proxy/
 ├── main.go                 # Application entry point
 ├── internal/
 │   ├── api/
-│   │   └── api.go         # REST API server
+│   │   └── api.go         # REST API server (DNS + SOCKS endpoints)
 │   ├── db/
-│   │   └── db.go          # Database operations
-│   └── proxy/
-│       └── proxy.go       # DNS proxy logic
+│   │   └── db.go          # Database operations (DNS + SOCKS)
+│   ├── logs/
+│   │   └── logs.go        # DNS request logging
+│   ├── proxy/
+│   │   └── proxy.go       # DNS proxy logic
+│   └── socks/
+│       └── socks.go       # SOCKS5 proxy server
 ├── web/
 │   └── index.html         # Web management interface
+├── Dockerfile             # Container build
+├── generate-certs.sh      # TLS certificate generation
 ├── go.mod                 # Go dependencies
 └── README.md              # This file
 ```
