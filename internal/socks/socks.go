@@ -38,7 +38,8 @@ func NewSOCKSServer(database *sql.DB, addr string) *SOCKSServer {
 }
 
 func (s *SOCKSServer) Start() error {
-	listener, err := net.Listen("tcp", s.addr)
+	// Listen on tcp4 to ensure IPv4 binding
+	listener, err := net.Listen("tcp4", s.addr)
 	if err != nil {
 		return fmt.Errorf("failed to start SOCKS server: %w", err)
 	}
