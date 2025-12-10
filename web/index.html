@@ -897,6 +897,10 @@
                         <td id="dotPortStatus">853 (TCP-TLS) - <span id="dotStatusBadge">Checking...</span></td>
                     </tr>
                     <tr>
+                        <td><strong>SOCKS5 Proxy Port</strong></td>
+                        <td>1080 (TCP)</td>
+                    </tr>
+                    <tr>
                         <td><strong>Web Interface Port</strong></td>
                         <td>8080 (TCP)</td>
                     </tr>
@@ -914,6 +918,30 @@
                 </div>
                 <div class="code-block" id="dnsConfig">
 nameserver <span id="dnsIp">Loading...</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">SOCKS5 Proxy Configuration</div>
+                <div class="alert alert-info">
+                    To use this SOCKS5 proxy, configure your browser or application with the following settings:
+                </div>
+                <table>
+                    <tr>
+                        <td><strong>Proxy Type</strong></td>
+                        <td>SOCKS5</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Proxy Address</strong></td>
+                        <td id="socksProxyAddress">Loading...</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Proxy Port</strong></td>
+                        <td>1080</td>
+                    </tr>
+                </table>
+                <div class="alert alert-info" style="margin-top: 15px;">
+                    <strong>How it works:</strong> When you connect through this SOCKS proxy, all DNS lookups automatically use your configured domain rules. For example, if you have a rule for <code>netflix.com</code> to use SmartDNSProxy, any connection to Netflix through this SOCKS proxy will automatically use that DNS server.
                 </div>
             </div>
 
@@ -1054,6 +1082,7 @@ nameserver <span id="dnsIp">Loading...</span>
                 document.getElementById('serverAddress').textContent = localIP;
                 document.getElementById('dnsIp').textContent = localIP;
                 document.getElementById('regularDnsIp').textContent = localIP;
+                document.getElementById('socksProxyAddress').textContent = localIP;
                 document.getElementById('dotServerHostname').textContent = hostnameLan;
                 document.getElementById('dotHostnameWarning').textContent = hostnameLan;
 
@@ -1076,6 +1105,7 @@ nameserver <span id="dnsIp">Loading...</span>
                 document.getElementById('serverAddress').textContent = 'localhost';
                 document.getElementById('dnsIp').textContent = 'localhost';
                 document.getElementById('regularDnsIp').textContent = 'localhost';
+                document.getElementById('socksProxyAddress').textContent = 'localhost';
                 document.getElementById('dotServerHostname').textContent = 'localhost';
                 document.getElementById('dotHostnameWarning').textContent = 'localhost';
             }
