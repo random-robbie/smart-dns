@@ -800,7 +800,12 @@
             </div>
 
             <div class="card">
-                <div class="card-header">Domain Rules</div>
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>Domain Rules</span>
+                    <button class="btn btn-secondary" onclick="exportDomains()" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+                        Export Domains
+                    </button>
+                </div>
                 <div class="form-group" style="margin-bottom: 1rem;">
                     <input type="text" class="form-input" id="domainSearch" placeholder="Search domains..." onkeyup="filterDomains()">
                     <div class="form-hint">Type to filter domains by name or service</div>
@@ -2104,6 +2109,30 @@ nameserver <span id="dnsIp">Loading...</span>
                 showAlert('importExportAlert', 'Configuration exported successfully', 'success');
             } catch (error) {
                 showAlert('importExportAlert', 'Error exporting configuration', 'error');
+            }
+        }
+
+        async function exportDomains() {
+            try {
+                const response = await fetch(`${API_BASE}/rules`);
+                const rules = await response.json();
+
+                // Create a text file with just the domain names
+                const domainList = rules.map(rule => rule.domain).join('\n');
+
+                // Create a blob and download
+                const blob = new Blob([domainList], { type: 'text/plain' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `smartdns-domains-${new Date().toISOString().split('T')[0]}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('Error exporting domains:', error);
+                alert('Error exporting domains');
             }
         }
 
