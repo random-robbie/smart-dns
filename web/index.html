@@ -1067,6 +1067,13 @@ nameserver <span id="dnsIp">Loading...</span>
                     }
                 });
             }
+
+            // Reload data when switching to specific tabs
+            if (tabName === 'domains') {
+                loadDomainRules(); // Refresh domain rules and server list
+            } else if (tabName === 'logs') {
+                loadLogs(); // Refresh logs
+            }
         }
 
         // Get client IP and server IP
