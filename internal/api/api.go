@@ -55,6 +55,12 @@ func (s *APIServer) setupRoutes() {
 	api.HandleFunc("/servers/{id}", s.updateDNSServer).Methods("PUT")
 	api.HandleFunc("/servers/{id}", s.deleteDNSServer).Methods("DELETE")
 
+	// SOCKS Proxies
+	api.HandleFunc("/proxies", s.getSOCKSProxies).Methods("GET")
+	api.HandleFunc("/proxies", s.addSOCKSProxy).Methods("POST")
+	api.HandleFunc("/proxies/{id}", s.updateSOCKSProxy).Methods("PUT")
+	api.HandleFunc("/proxies/{id}", s.deleteSOCKSProxy).Methods("DELETE")
+
 	// Domain Rules
 	api.HandleFunc("/rules", s.getDomainRules).Methods("GET")
 	api.HandleFunc("/rules", s.addDomainRule).Methods("POST")
@@ -237,12 +243,14 @@ func (s *APIServer) getDomainRules(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Enrich rules with server information
+	// Enrich rules with server and proxy information
 	type EnrichedRule struct {
 		ID         int    `json:"id"`
 		Domain     string `json:"domain"`
 		ServerID   int    `json:"server_id"`
 		ServerName string `json:"server_name"`
+		ProxyID    int    `json:"proxy_id,omitempty"`
+		ProxyName  string `json:"proxy_name,omitempty"`
 	}
 
 	enriched := make([]EnrichedRule, 0, len(rules))
@@ -252,12 +260,23 @@ func (s *APIServer) getDomainRules(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		enriched = append(enriched, EnrichedRule{
+		enrichedRule := EnrichedRule{
 			ID:         rule.ID,
 			Domain:     rule.Domain,
 			ServerID:   rule.ServerID,
 			ServerName: server.Name,
-		})
+			ProxyID:    rule.ProxyID,
+		}
+
+		// Add proxy information if available
+		if rule.ProxyID > 0 {
+			proxy, err := db.GetSOCKSProxy(s.db, rule.ProxyID)
+			if err == nil && proxy != nil {
+				enrichedRule.ProxyName = proxy.Name
+			}
+		}
+
+		enriched = append(enriched, enrichedRule)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -268,6 +287,7 @@ func (s *APIServer) addDomainRule(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Domain   string `json:"domain"`
 		ServerID int    `json:"server_id"`
+		ProxyID  int    `json:"proxy_id,omitempty"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -292,14 +312,23 @@ func (s *APIServer) addDomainRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate proxy exists if specified
+	if req.ProxyID > 0 {
+		proxy, err := db.GetSOCKSProxy(s.db, req.ProxyID)
+		if err != nil || proxy == nil {
+			http.Error(w, "SOCKS proxy not found", http.StatusBadRequest)
+			return
+		}
+	}
+
 	// Check for exact duplicates only (allow adding if it updates the rule)
 	existingRule, err := db.GetDomainRule(s.db, req.Domain)
-	if err == nil && existingRule != nil && existingRule.ServerID == req.ServerID {
-		http.Error(w, "Domain rule already exists with same server", http.StatusConflict)
+	if err == nil && existingRule != nil && existingRule.ServerID == req.ServerID && existingRule.ProxyID == req.ProxyID {
+		http.Error(w, "Domain rule already exists with same server and proxy", http.StatusConflict)
 		return
 	}
 
-	if err := db.AddDomainRule(s.db, req.Domain, req.ServerID); err != nil {
+	if err := db.AddDomainRuleWithProxy(s.db, req.Domain, req.ServerID, req.ProxyID); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -989,4 +1018,123 @@ func stringSlicesEqual(a, b []string) bool {
 	}
 
 	return true
+}
+
+// SOCKS Proxy handlers
+func (s *APIServer) getSOCKSProxies(w http.ResponseWriter, r *http.Request) {
+	proxies, err := db.GetSOCKSProxies(s.db)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(proxies)
+}
+
+func (s *APIServer) addSOCKSProxy(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name     string `json:"name"`
+		Host     string `json:"host"`
+		Port     int    `json:"port"`
+		Username string `json:"username"`
+		Password string `json:"password"`
+		Enabled  bool   `json:"enabled"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Validate inputs
+	if req.Name == "" {
+		http.Error(w, "Proxy name cannot be empty", http.StatusBadRequest)
+		return
+	}
+	if req.Host == "" {
+		http.Error(w, "Proxy host cannot be empty", http.StatusBadRequest)
+		return
+	}
+	if req.Port <= 0 || req.Port > 65535 {
+		http.Error(w, "Invalid port number", http.StatusBadRequest)
+		return
+	}
+
+	id, err := db.AddSOCKSProxy(s.db, req.Name, req.Host, req.Port, req.Username, req.Password, req.Enabled)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"id": id})
+}
+
+func (s *APIServer) updateSOCKSProxy(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Name     string `json:"name"`
+		Host     string `json:"host"`
+		Port     int    `json:"port"`
+		Username string `json:"username"`
+		Password string `json:"password"`
+		Enabled  bool   `json:"enabled"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Validate inputs
+	if req.Name == "" {
+		http.Error(w, "Proxy name cannot be empty", http.StatusBadRequest)
+		return
+	}
+	if req.Host == "" {
+		http.Error(w, "Proxy host cannot be empty", http.StatusBadRequest)
+		return
+	}
+	if req.Port <= 0 || req.Port > 65535 {
+		http.Error(w, "Invalid port number", http.StatusBadRequest)
+		return
+	}
+
+	// Verify proxy exists
+	proxy, err := db.GetSOCKSProxy(s.db, id)
+	if err != nil || proxy == nil {
+		http.Error(w, "SOCKS proxy not found", http.StatusNotFound)
+		return
+	}
+
+	if err := db.UpdateSOCKSProxy(s.db, id, req.Name, req.Host, req.Port, req.Username, req.Password, req.Enabled); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
+}
+
+func (s *APIServer) deleteSOCKSProxy(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := db.DeleteSOCKSProxy(s.db, id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

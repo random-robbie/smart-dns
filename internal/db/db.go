@@ -14,10 +14,21 @@ type DNSServer struct {
 	Secondary string `json:"secondary"`
 }
 
+type SOCKSProxy struct {
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
+	Enabled  bool   `json:"enabled"`
+}
+
 type DomainRule struct {
 	ID       int    `json:"id"`
 	Domain   string `json:"domain"`
 	ServerID int    `json:"server_id"`
+	ProxyID  int    `json:"proxy_id,omitempty"`  // Optional SOCKS proxy
 }
 
 func InitDB(dbPath string) (*sql.DB, error) {
@@ -35,11 +46,23 @@ func InitDB(dbPath string) (*sql.DB, error) {
 		secondary_server TEXT
 	);
 
+	CREATE TABLE IF NOT EXISTS socks_proxies (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		host TEXT NOT NULL,
+		port INTEGER NOT NULL,
+		username TEXT,
+		password TEXT,
+		enabled INTEGER DEFAULT 1
+	);
+
 	CREATE TABLE IF NOT EXISTS domain_rules (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		domain TEXT NOT NULL UNIQUE,
 		server_id INTEGER NOT NULL,
-		FOREIGN KEY(server_id) REFERENCES dns_servers(id) ON DELETE CASCADE
+		proxy_id INTEGER,
+		FOREIGN KEY(server_id) REFERENCES dns_servers(id) ON DELETE CASCADE,
+		FOREIGN KEY(proxy_id) REFERENCES socks_proxies(id) ON DELETE SET NULL
 	);
 
 	CREATE INDEX IF NOT EXISTS idx_domain ON domain_rules(domain);
@@ -156,7 +179,7 @@ func DeleteDNSServer(db *sql.DB, id int) error {
 
 // Domain Rule CRUD operations
 func GetDomainRules(db *sql.DB) ([]DomainRule, error) {
-	rows, err := db.Query("SELECT id, domain, server_id FROM domain_rules ORDER BY domain")
+	rows, err := db.Query("SELECT id, domain, server_id, COALESCE(proxy_id, 0) FROM domain_rules ORDER BY domain")
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +188,7 @@ func GetDomainRules(db *sql.DB) ([]DomainRule, error) {
 	var rules []DomainRule
 	for rows.Next() {
 		var r DomainRule
-		if err := rows.Scan(&r.ID, &r.Domain, &r.ServerID); err != nil {
+		if err := rows.Scan(&r.ID, &r.Domain, &r.ServerID, &r.ProxyID); err != nil {
 			return nil, err
 		}
 		rules = append(rules, r)
@@ -177,9 +200,9 @@ func GetDomainRules(db *sql.DB) ([]DomainRule, error) {
 func GetDomainRule(db *sql.DB, domain string) (*DomainRule, error) {
 	var r DomainRule
 	err := db.QueryRow(
-		"SELECT id, domain, server_id FROM domain_rules WHERE domain = ?",
+		"SELECT id, domain, server_id, COALESCE(proxy_id, 0) FROM domain_rules WHERE domain = ?",
 		domain,
-	).Scan(&r.ID, &r.Domain, &r.ServerID)
+	).Scan(&r.ID, &r.Domain, &r.ServerID, &r.ProxyID)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -233,4 +256,95 @@ func BulkAddDomainRules(db *sql.DB, domains []string, serverID int) error {
 	}
 
 	return tx.Commit()
+}
+
+// SOCKS Proxy CRUD operations
+func GetSOCKSProxies(db *sql.DB) ([]SOCKSProxy, error) {
+	rows, err := db.Query("SELECT id, name, host, port, username, password, enabled FROM socks_proxies")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var proxies []SOCKSProxy
+	for rows.Next() {
+		var p SOCKSProxy
+		var enabled int
+		if err := rows.Scan(&p.ID, &p.Name, &p.Host, &p.Port, &p.Username, &p.Password, &enabled); err != nil {
+			return nil, err
+		}
+		p.Enabled = enabled == 1
+		proxies = append(proxies, p)
+	}
+
+	return proxies, nil
+}
+
+func GetSOCKSProxy(db *sql.DB, id int) (*SOCKSProxy, error) {
+	var p SOCKSProxy
+	var enabled int
+	err := db.QueryRow(
+		"SELECT id, name, host, port, username, password, enabled FROM socks_proxies WHERE id = ?",
+		id,
+	).Scan(&p.ID, &p.Name, &p.Host, &p.Port, &p.Username, &p.Password, &enabled)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	p.Enabled = enabled == 1
+
+	return &p, nil
+}
+
+func AddSOCKSProxy(db *sql.DB, name, host string, port int, username, password string, enabled bool) (int64, error) {
+	enabledInt := 0
+	if enabled {
+		enabledInt = 1
+	}
+	result, err := db.Exec(
+		"INSERT INTO socks_proxies (name, host, port, username, password, enabled) VALUES (?, ?, ?, ?, ?, ?)",
+		name, host, port, username, password, enabledInt,
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	return result.LastInsertId()
+}
+
+func UpdateSOCKSProxy(db *sql.DB, id int, name, host string, port int, username, password string, enabled bool) error {
+	enabledInt := 0
+	if enabled {
+		enabledInt = 1
+	}
+	_, err := db.Exec(
+		"UPDATE socks_proxies SET name = ?, host = ?, port = ?, username = ?, password = ?, enabled = ? WHERE id = ?",
+		name, host, port, username, password, enabledInt, id,
+	)
+	return err
+}
+
+func DeleteSOCKSProxy(db *sql.DB, id int) error {
+	_, err := db.Exec("DELETE FROM socks_proxies WHERE id = ?", id)
+	return err
+}
+
+// Update domain rule to optionally include SOCKS proxy
+func AddDomainRuleWithProxy(db *sql.DB, domain string, serverID, proxyID int) error {
+	var query string
+	var args []interface{}
+
+	if proxyID > 0 {
+		query = "INSERT OR REPLACE INTO domain_rules (domain, server_id, proxy_id) VALUES (?, ?, ?)"
+		args = []interface{}{domain, serverID, proxyID}
+	} else {
+		query = "INSERT OR REPLACE INTO domain_rules (domain, server_id) VALUES (?, ?)"
+		args = []interface{}{domain, serverID}
+	}
+
+	_, err := db.Exec(query, args...)
+	return err
 }

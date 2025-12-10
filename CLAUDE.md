@@ -4,12 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SmartDNS Proxy is a DNS proxy server with intelligent routing and web-based management. It allows routing specific domains to specific DNS servers while using default DNS for everything else. The application is containerized with Docker and consists of four main components that run concurrently:
+SmartDNS Proxy is a DNS proxy server with SOCKS5 proxy support, intelligent routing, and web-based management. It allows routing specific domains to specific DNS servers while using default DNS for everything else, and can route traffic through SOCKS proxies based on domain rules. The application is containerized with Docker and consists of five main components that run concurrently:
 
 1. **DNS Proxy Server** (port 53) - Dual-stack (IPv4+IPv6) DNS server that handles queries and routes them based on domain rules
 2. **DNS-over-TLS Server** (port 853) - Encrypted DNS server for Private DNS support on Android and other devices
-3. **REST API Server** (port 8080) - Provides backend API for managing servers and rules
-4. **Web Interface** - Modern single-page application with dark mode, domain discovery tools, and real-time logging
+3. **SOCKS5 Proxy Server** (port 1080) - SOCKS5 proxy server that routes connections through upstream SOCKS proxies based on domain rules
+4. **REST API Server** (port 8080) - Provides backend API for managing DNS servers, SOCKS proxies, and domain rules
+5. **Web Interface** - Modern single-page application with dark mode, domain discovery tools, SOCKS proxy management, and real-time logging
 
 ## Build & Run Commands
 
@@ -70,6 +71,11 @@ nslookup example.com 192.168.1.82
 
 # Test DNS-over-TLS (requires kdig from knot-dnsutils)
 kdig -d @192.168.1.82 +tls example.com
+
+# Test SOCKS5 proxy
+curl -x socks5://192.168.1.82:1080 https://example.com
+# With authentication
+curl -x socks5://username:password@192.168.1.82:1080 https://example.com
 ```
 
 The web interface is accessible at `http://192.168.1.82:8080` when running (replace with your server IP).
@@ -84,19 +90,20 @@ The web interface is accessible at `http://192.168.1.82:8080` when running (repl
 ## Architecture
 
 ### Application Flow
-`main.go` initializes four concurrent components:
+`main.go` initializes five concurrent components:
 1. **Database (SQLite)** - Stored in `/data/smartdns.db` for persistence across container rebuilds
 2. **DNSLogger** - Thread-safe in-memory circular buffer for last 200 DNS requests
 3. **DNS Proxy goroutines** - Multiple DNS servers:
    - IPv4 UDP server on `0.0.0.0:53`
    - IPv6 UDP server on `[::]:53`
    - DNS-over-TLS TCP server on `0.0.0.0:853` (if certificates exist)
-4. **API Server goroutine** - HTTP server on `:8080`
+4. **SOCKS5 Proxy goroutine** - TCP server on `0.0.0.0:1080`
+5. **API Server goroutine** - HTTP server on `:8080`
 
 ### Data Persistence
 - Database location: `/data/smartdns.db` (configurable via `DB_PATH` env var)
 - Docker volume: `smartdns-data:/data` ensures settings persist across container rebuilds
-- All DNS servers, domain rules, and configuration survive restarts
+- All DNS servers, SOCKS proxies, domain rules, and configuration survive restarts
 
 ### DNS Query Resolution (`internal/proxy/proxy.go`)
 The proxy uses hierarchical domain matching with dual-stack support:
@@ -108,11 +115,23 @@ The proxy uses hierarchical domain matching with dual-stack support:
 Each query is forwarded to the appropriate DNS server and logged with timing information, client IP, and hostname.
 
 ### Database Schema (`internal/db/db.go`)
-SQLite database with two tables:
+SQLite database with three tables:
 - `dns_servers`: Stores DNS server configurations (name, primary, secondary IPs)
-- `domain_rules`: Maps domains to DNS servers (includes index on domain column)
+- `socks_proxies`: Stores SOCKS5 proxy configurations (name, host, port, username, password, enabled)
+- `domain_rules`: Maps domains to DNS servers and optionally SOCKS proxies (includes index on domain column, foreign keys to both dns_servers and socks_proxies)
 
 Six default DNS servers are pre-configured on first run, including SmartDNSProxy, NordVPN SmartDNS, Cloudflare, and Google DNS.
+
+### SOCKS5 Proxy Server (`internal/socks/socks.go`)
+The SOCKS5 proxy server provides intelligent traffic routing through upstream proxies:
+1. **Client connection** - Accepts SOCKS5 connections on port 1080
+2. **Domain matching** - Extracts target domain from CONNECT requests
+3. **Proxy lookup** - Checks domain rules database for matching SOCKS proxy configuration
+4. **Upstream connection** - If a proxy is configured for the domain, connects through the upstream SOCKS proxy; otherwise makes direct connection
+5. **Authentication** - Supports both no-auth and username/password authentication for upstream proxies
+6. **Bidirectional relay** - Forwards data between client and target using goroutines
+
+The proxy supports hierarchical domain matching (exact, parent, wildcard) and can chain through multiple SOCKS proxies.
 
 ### DNS Logging (`internal/logs/logs.go`)
 Thread-safe in-memory circular buffer that stores the last 200 DNS requests. Uses `sync.RWMutex` for concurrent access. Logs include:
@@ -123,7 +142,8 @@ Thread-safe in-memory circular buffer that stores the last 200 DNS requests. Use
 ### API Endpoints (`internal/api/api.go`)
 REST API using gorilla/mux router:
 - `/api/servers` - CRUD for DNS server configurations (GET, POST, PUT, DELETE)
-- `/api/rules` - CRUD for domain rules (GET, POST, DELETE)
+- `/api/proxies` - CRUD for SOCKS proxy configurations (GET, POST, PUT, DELETE)
+- `/api/rules` - CRUD for domain rules with optional proxy assignment (GET, POST, DELETE)
 - `/api/rules/bulk` - Bulk import multiple domains
 - `/api/logs` - Retrieve DNS logs, clear logs, get unproxied domains
 - `/api/export` - Export configuration as JSON
@@ -135,6 +155,7 @@ REST API using gorilla/mux router:
 Modern single-page application with:
 - **Dark/Light mode** - Theme preference stored in localStorage
 - **Dashboard** - Overview with stats and service cards
+- **SOCKS Proxies** - Manage SOCKS5 proxies with enable/disable toggle
 - **Services** - Manage DNS servers with rename capability
 - **Domains** - Add/remove domain rules with bulk import
 - **Request Logs** - Real-time DNS query log with auto-refresh and dropdown for quick-add
@@ -147,7 +168,8 @@ Modern single-page application with:
 - DNS IPv4: `internal/proxy/proxy.go:42` - `0.0.0.0:53` (UDP)
 - DNS IPv6: `internal/proxy/proxy.go:53` - `[::]:53` (UDP)
 - DNS-over-TLS: `internal/proxy/proxy.go:104` - `0.0.0.0:853` (TCP-TLS)
-- Web/API port: `main.go:42` - `:8080` (HTTP)
+- SOCKS5 proxy: `main.go:51` - `0.0.0.0:1080` (TCP)
+- Web/API port: `main.go:60` - `:8080` (HTTP)
 
 ### Default DNS Servers
 - Fallback DNS: `internal/proxy/proxy.go:26` - default `["1.1.1.1:53", "8.8.8.8:53"]`
@@ -168,6 +190,22 @@ Modern single-page application with:
 - DNS log buffer size: `main.go:30` - default 200 requests
 
 ## New Features
+
+### SOCKS5 Proxy Support
+The system now includes a full SOCKS5 proxy server with intelligent routing:
+- **Server**: Listens on port 1080 for SOCKS5 connections
+- **Domain-based routing**: Routes traffic through different upstream SOCKS proxies based on domain rules
+- **Authentication**: Supports both no-auth and username/password authentication for upstream proxies
+- **Web management**: Add, edit, enable/disable, and delete proxies via the web UI
+- **Direct fallback**: Domains without proxy rules use direct connections
+
+**Use Cases**:
+- Route streaming services (Netflix, Hulu) through specific proxies while using direct connection for everything else
+- Chain proxies for additional privacy
+- Bypass geo-restrictions on a per-domain basis
+- Test proxy configurations without changing system-wide settings
+
+**Configuration**: Add SOCKS proxies in the web UI under "SOCKS Proxies" tab, then assign them to domains in the "Domains" tab.
 
 ### Domain Discovery Tool
 The domain discovery tool (`/api/tools/discover`) analyzes a website and automatically:

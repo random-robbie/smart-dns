@@ -11,6 +11,7 @@ import (
 	"smartdns-proxy/internal/db"
 	"smartdns-proxy/internal/logs"
 	"smartdns-proxy/internal/proxy"
+	"smartdns-proxy/internal/socks"
 )
 
 func main() {
@@ -46,6 +47,15 @@ func main() {
 		}
 	}()
 
+	// Start SOCKS5 proxy server
+	socksServer := socks.NewSOCKSServer(database, "0.0.0.0:1080")
+	go func() {
+		log.Println("Starting SOCKS5 proxy on 0.0.0.0:1080")
+		if err := socksServer.Start(); err != nil {
+			log.Fatalf("Failed to start SOCKS proxy: %v", err)
+		}
+	}()
+
 	// Start API server
 	apiServer := api.NewAPIServer(database, ":8080", dnsLogger)
 	go func() {
@@ -61,4 +71,5 @@ func main() {
 	<-sigChan
 
 	log.Println("Shutting down...")
+	socksServer.Stop()
 }

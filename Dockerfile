@@ -28,8 +28,8 @@ COPY --from=builder /app/smartdns-proxy .
 COPY --from=builder /app/web ./web
 COPY generate-certs.sh .
 
-# Expose DNS (UDP/TCP), DNS-over-TLS, and API ports
-EXPOSE 53/udp 53/tcp 853/tcp 8080/tcp
+# Expose DNS (UDP/TCP), DNS-over-TLS, SOCKS5 proxy, and API ports
+EXPOSE 53/udp 53/tcp 853/tcp 1080/tcp 8080/tcp
 
 # Run as root (required for port 53)
 CMD ["./smartdns-proxy"]

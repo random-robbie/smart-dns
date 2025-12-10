@@ -621,6 +621,7 @@
         <div class="tabs">
             <button class="tab active" onclick="switchTab('dashboard', event)">Dashboard</button>
             <button class="tab" onclick="switchTab('services', event)">Services</button>
+            <button class="tab" onclick="switchTab('proxies', event)">SOCKS Proxies</button>
             <button class="tab" onclick="switchTab('domains', event)">Domains</button>
             <button class="tab" onclick="switchTab('logs', event)">Request Logs</button>
             <button class="tab" onclick="switchTab('tools', event)">Tools</button>
@@ -698,6 +699,59 @@
             </div>
         </div>
 
+        <!-- SOCKS Proxies Tab -->
+        <div id="tab-proxies" class="tab-content">
+            <div class="card">
+                <div class="card-header">Add SOCKS Proxy</div>
+                <div id="addProxyAlert"></div>
+                <form id="addProxyForm">
+                    <div class="form-group">
+                        <label class="form-label">Proxy Name</label>
+                        <input type="text" class="form-input" id="proxyName" placeholder="My SOCKS Proxy" required>
+                        <div class="form-hint">A descriptive name for this proxy</div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Host</label>
+                            <input type="text" class="form-input" id="proxyHost" placeholder="proxy.example.com or 192.168.1.100" required>
+                            <div class="form-hint">Proxy server hostname or IP</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Port</label>
+                            <input type="number" class="form-input" id="proxyPort" placeholder="1080" required min="1" max="65535">
+                            <div class="form-hint">Proxy port (typically 1080)</div>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Username (Optional)</label>
+                            <input type="text" class="form-input" id="proxyUsername" placeholder="username">
+                            <div class="form-hint">Leave empty if no auth required</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Password (Optional)</label>
+                            <input type="password" class="form-input" id="proxyPassword" placeholder="password">
+                            <div class="form-hint">Required if username is set</div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="proxyEnabled" checked>
+                            <span>Enable this proxy</span>
+                        </label>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Proxy</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="card-header">Manage Proxies</div>
+                <div id="proxiesManagement">
+                    <div class="empty-state">Loading proxies...</div>
+                </div>
+            </div>
+        </div>
+
         <!-- Domains Tab -->
         <div id="tab-domains" class="tab-content">
             <div class="card">
@@ -714,6 +768,13 @@
                         <select class="form-select" id="dnsServer" required>
                             <option value="">Select a service...</option>
                         </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">SOCKS Proxy (Optional)</label>
+                        <select class="form-select" id="socksProxy">
+                            <option value="">No proxy (direct connection)</option>
+                        </select>
+                        <div class="form-hint">Route traffic through a SOCKS proxy</div>
                     </div>
                     <button type="submit" class="btn btn-primary">Add Rule</button>
                 </form>
@@ -936,6 +997,7 @@ nameserver <span id="dnsIp">Loading...</span>
     <script>
         const API_BASE = '/api';
         let allServers = [];
+        let allProxies = [];
         let allRules = [];
 
         // Theme management
@@ -1201,6 +1263,153 @@ nameserver <span id="dnsIp">Loading...</span>
             }
         }
 
+        // Load SOCKS proxies
+        async function loadSOCKSProxies() {
+            try {
+                const response = await fetch(`${API_BASE}/proxies`);
+                const proxies = await response.json();
+                allProxies = proxies;
+
+                // Update proxy selector in domain form
+                const proxySelect = document.getElementById('socksProxy');
+                if (proxySelect) {
+                    proxySelect.innerHTML = '<option value="">No proxy (direct connection)</option>';
+                    proxies.forEach(proxy => {
+                        const option = document.createElement('option');
+                        option.value = proxy.id;
+                        option.textContent = `${proxy.name} (${proxy.host}:${proxy.port})${!proxy.enabled ? ' [Disabled]' : ''}`;
+                        if (!proxy.enabled) {
+                            option.disabled = true;
+                        }
+                        proxySelect.appendChild(option);
+                    });
+                }
+
+                // Update proxies management list
+                displayProxies(proxies);
+            } catch (error) {
+                console.error('Error loading SOCKS proxies:', error);
+            }
+        }
+
+        function displayProxies(proxies) {
+            const container = document.getElementById('proxiesManagement');
+            if (proxies.length === 0) {
+                container.innerHTML = '<div class="empty-state">No SOCKS proxies configured</div>';
+                return;
+            }
+
+            let html = '<table><thead><tr><th>Name</th><th>Host</th><th>Port</th><th>Auth</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+            proxies.forEach(proxy => {
+                const hasAuth = proxy.username ? 'Yes' : 'No';
+                const statusBadge = proxy.enabled ?
+                    '<span class="badge badge-success">Enabled</span>' :
+                    '<span class="badge badge-danger">Disabled</span>';
+
+                html += `
+                    <tr>
+                        <td><strong>${proxy.name}</strong></td>
+                        <td><code>${proxy.host}</code></td>
+                        <td>${proxy.port}</td>
+                        <td>${hasAuth}</td>
+                        <td>${statusBadge}</td>
+                        <td>
+                            <button class="btn btn-sm btn-secondary" onclick="toggleProxyStatus(${proxy.id}, ${!proxy.enabled})">
+                                ${proxy.enabled ? 'Disable' : 'Enable'}
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteProxy(${proxy.id})">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        async function toggleProxyStatus(id, enabled) {
+            const proxy = allProxies.find(p => p.id === id);
+            if (!proxy) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/proxies/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: proxy.name,
+                        host: proxy.host,
+                        port: proxy.port,
+                        username: proxy.username || '',
+                        password: proxy.password || '',
+                        enabled: enabled
+                    })
+                });
+
+                if (response.ok) {
+                    loadSOCKSProxies();
+                } else {
+                    const errorText = await response.text();
+                    alert('Failed to update proxy: ' + errorText);
+                }
+            } catch (error) {
+                console.error('Error updating proxy:', error);
+                alert('Failed to update proxy: ' + error.message);
+            }
+        }
+
+        async function deleteProxy(id) {
+            if (!confirm('Are you sure you want to delete this proxy?')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/proxies/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    loadSOCKSProxies();
+                    showAlert('addProxyAlert', 'Proxy deleted successfully', 'success');
+                } else {
+                    const errorText = await response.text();
+                    showAlert('addProxyAlert', 'Failed to delete proxy: ' + errorText, 'danger');
+                }
+            } catch (error) {
+                console.error('Error deleting proxy:', error);
+                showAlert('addProxyAlert', 'Failed to delete proxy: ' + error.message, 'danger');
+            }
+        }
+
+        // Add proxy form handler
+        document.getElementById('addProxyForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const name = document.getElementById('proxyName').value.trim();
+            const host = document.getElementById('proxyHost').value.trim();
+            const port = parseInt(document.getElementById('proxyPort').value);
+            const username = document.getElementById('proxyUsername').value.trim();
+            const password = document.getElementById('proxyPassword').value.trim();
+            const enabled = document.getElementById('proxyEnabled').checked;
+
+            try {
+                const response = await fetch(`${API_BASE}/proxies`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, host, port, username, password, enabled })
+                });
+
+                if (response.ok) {
+                    showAlert('addProxyAlert', 'Proxy added successfully!', 'success');
+                    e.target.reset();
+                    document.getElementById('proxyEnabled').checked = true;
+                    loadSOCKSProxies();
+                } else {
+                    const errorText = await response.text();
+                    showAlert('addProxyAlert', 'Failed to add proxy: ' + errorText, 'danger');
+                }
+            } catch (error) {
+                console.error('Error adding proxy:', error);
+                showAlert('addProxyAlert', 'Failed to add proxy: ' + error.message, 'danger');
+            }
+        });
+
         // Load domain rules
         let allDomainRules = []; // Store all rules for filtering
 
@@ -1245,6 +1454,7 @@ nameserver <span id="dnsIp">Loading...</span>
                             </th>
                             <th>Domain</th>
                             <th>DNS Service</th>
+                            <th>SOCKS Proxy</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -1257,6 +1467,11 @@ nameserver <span id="dnsIp">Loading...</span>
                     serviceOptions += `<option value="${server.id}" ${selected}>${server.name}</option>`;
                 });
 
+                // Display proxy info
+                const proxyInfo = rule.proxy_name ?
+                    `<span class="badge badge-success">${rule.proxy_name}</span>` :
+                    '<span class="badge badge-secondary">Direct</span>';
+
                 html += `
                     <tr>
                         <td>
@@ -1268,6 +1483,7 @@ nameserver <span id="dnsIp">Loading...</span>
                                 ${serviceOptions}
                             </select>
                         </td>
+                        <td>${proxyInfo}</td>
                         <td>
                             <button class="btn btn-danger btn-sm" onclick="deleteRule(${rule.id})">Delete</button>
                         </td>
@@ -1413,6 +1629,7 @@ nameserver <span id="dnsIp">Loading...</span>
             e.preventDefault();
             const domain = document.getElementById('domain').value.trim();
             const serverId = document.getElementById('dnsServer').value;
+            const proxyId = document.getElementById('socksProxy').value;
 
             // Validate inputs
             if (!domain || domain === '') {
@@ -1430,11 +1647,16 @@ nameserver <span id="dnsIp">Loading...</span>
                 return;
             }
 
+            const requestBody = { domain, server_id: serverIdNum };
+            if (proxyId && proxyId !== '') {
+                requestBody.proxy_id = parseInt(proxyId);
+            }
+
             try {
                 const response = await fetch(`${API_BASE}/rules`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ domain, server_id: serverIdNum })
+                    body: JSON.stringify(requestBody)
                 });
 
                 if (response.ok) {
@@ -2145,6 +2367,7 @@ nameserver <span id="dnsIp">Loading...</span>
         getClientIp();
         checkCertificateStatus();
         loadDNSServers();
+        loadSOCKSProxies();
         loadDomainRules();
         loadServicesOverview();
         loadDNSLogs();
